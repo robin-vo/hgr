@@ -28,16 +28,16 @@ Unified Credibility Reserving (UCR) provides a data-adaptive framework that nest
 
 ```r
 # Using devtools
-devtools::install_github("robin-vo/vog")
+devtools::install_github("robin-vo/hgr")
 
 # Or using remotes
-remotes::install_github("robin-vo/vog")
+remotes::install_github("robin-vo/hgr")
 ```
 
 ## Quick Start - NB-CL
 
 ```r
-library(vog)
+library(hgr)
 
 # Fit model to triangle
 fit <- fit_nbcl(triangle)
@@ -57,7 +57,7 @@ plot_diagnostics(fit)
 ## Quick Start - UCR
 
 ```r
-library(vog)
+library(hgr)
 
 # Define your triangle (cumulative claims)
 triangle <- matrix(c(
