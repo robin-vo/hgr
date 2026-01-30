@@ -1,13 +1,16 @@
 Package: vog
 Title: Van Oirbeek's Grammar - A Unified Framework for Claims Reserving
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: 
-    person("Robin", "Van Oirbeek", , "robin.vanoirbeek@uantwerpen.be", role = c("aut", "cre"),
+    person("Robin", "Van Oirbeek", , "robin.vanoirbeek@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = ""))
 Description: Implements a unified framework for claims reserving in non-life insurance,
-    including the Negative Binomial Chain-Ladder (NB-CL) model. Provides a full 
-    likelihood framework for claim count triangles with functions for model fitting, 
-    prediction, parametric bootstrap with REML-like bias correction, diagnostics, 
+    based on the insight that classical reserving methods are credibility estimators.
+    Includes the Negative Binomial Chain-Ladder (NB-CL) model, Unified Credibility
+    Reserving (UCR), Mack's distribution-free model, and classical Bühlmann-Straub
+    credibility theory. UCR nests Chain-Ladder, Bornhuetter-Ferguson, and Cape Cod
+    as special cases with data-adaptive credibility weights. Provides functions for
+    model fitting, prediction, variance estimation, parametric bootstrap, diagnostics,
     and model comparison.
 License: GPL (>= 3)
 Encoding: UTF-8
@@ -16,8 +19,10 @@ RoxygenNote: 7.2.3
 Imports: 
     MASS,
     stats,
-    graphics
+    graphics,
+    dplyr
 Suggests:
     ChainLadder,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    ggplot2
 Config/testthat/edition: 3
