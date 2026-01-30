@@ -1,5 +1,5 @@
-Package: vog
-Title: Van Oirbeek's Grammar - A Unified Framework for Claims Reserving
+Package: hgr
+Title: A Unified Framework for Claims Reserving
 Version: 0.2.0
 Authors@R: 
     person("Robin", "Van Oirbeek", , "robin.vanoirbeek@gmail.com", role = c("aut", "cre"),
