@@ -1,6 +1,8 @@
-# vog: Van Oirbeek's Grammar for Claims Reserving
+# vog
 
-An R package implementing a unified framework for claims reserving in non-life insurance, including the Negative Binomial Chain-Ladder (NB-CL) model.
+An R package implementing methods for hierarchical reserving models in non-life insurance, currently including: 
+
+- the Negative Binomial Chain-Ladder (NB-CL) model.
 
 ## Overview
 
@@ -57,7 +59,7 @@ plot_diagnostics(fit)
 
 ## References
 
-Van Oirbeek, R. (2026). The Negative Binomial Chain-Ladder: A Full Likelihood Model for Claim Count Reserving.
+Van Oirbeek, R. (2026). The Negative Binomial Chain-Ladder: A Full Likelihood Model for Claim Count Reserving. Work in progress.
 
 ## License
 
