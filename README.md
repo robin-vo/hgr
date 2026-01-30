@@ -1,6 +1,6 @@
 # vog
 
-An R package implementing methods for hierarchical reserving models in non-life insurance, currently including: 
+An R package implementing methods for hierarchical claims reserving models in non-life insurance, currently including: 
 
 - the Negative Binomial Chain-Ladder (NB-CL) model.
 
