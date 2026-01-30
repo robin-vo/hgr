@@ -1,4 +1,4 @@
-# vog
+# hgr
 
 An R package implementing methods for hierarchical claims reserving models in non-life insurance, currently including: 
 
