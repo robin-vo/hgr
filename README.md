@@ -59,7 +59,13 @@ boot <- multinomial_bootstrap(incr, B = 10000)
 print(boot)
 
 # Use with Bornhuetter-Ferguson or any custom proportions
-boot_bf <- multinomial_bootstrap(incr, pi_hat = my_bf_proportions, B = 10000)
+# Example: BF proportions from external loss ratio and earned premium
+earned_premium <- c(10e6, 11e6, 12e6, 13e6, 14e6, 15e6, 16e6, 17e6, 18e6, 19e6)
+elr <- 0.65  # expected loss ratio
+bf_ultimate <- earned_premium * elr
+bf_pi <- colSums(incr, na.rm = TRUE) / sum(bf_ultimate)
+bf_pi <- bf_pi / sum(bf_pi)  # normalise to probability vector
+boot_bf <- multinomial_bootstrap(incr, pi_hat = bf_pi, B = 10000)
 
 # Fast delta method (no bootstrap)
 delta_method_var(incr)
