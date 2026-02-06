@@ -2,8 +2,19 @@
 
 An R package implementing methods for hierarchical claims reserving models in non-life insurance, currently including: 
 
-- the Negative Binomial Chain-Ladder (NB-CL) model.
-- an unified claims reserving (UCR) framework based on the insight that **classical reserving methods are credibility estimators**
+- the Negative Binomial Chain-Ladder (NB-CL) model
+- a Unified Credibility Reserving (UCR) framework based on the insight that **classical reserving methods are credibility estimators**
+- **model-agnostic predictive intervals** via Dirichlet-Multinomial allocation
+
+## Multinomial Parametric Bootstrap
+
+The multinomial bootstrap provides predictive intervals for **any** reserving method producing development proportions — not just Chain-Ladder:
+
+- **Method-agnostic**: Supply development proportions from Chain-Ladder, Bornhuetter-Ferguson, Cape Cod, GLMs, or expert judgment — the framework adds uncertainty quantification
+- **Single parameter**: The Dirichlet concentration `c` governs all development variability, estimated automatically from the triangle via partial-column moments
+- **Built-in diagnostic**: `c_hat < 30` signals accident-year heterogeneity requiring richer models; `c_hat >= 30` confirms stable development
+- **Joint count-amount**: The same framework handles both claim counts (Multinomial) and claim amounts (Dirichlet)
+- **No residual resampling**: Fully parametric bootstrap from Gamma-Dirichlet generative model
 
 ## NB-CL
 
@@ -27,61 +38,65 @@ Unified Credibility Reserving (UCR) provides a data-adaptive framework that nest
 ## Installation
 
 ```r
-# Using devtools
 devtools::install_github("robin-vo/hgr")
-
-# Or using remotes
-remotes::install_github("robin-vo/hgr")
 ```
 
-## Quick Start - NB-CL
+## Quick Start — Multinomial Bootstrap
+
+```r
+library(hgr)
+library(ChainLadder)
+
+# Convert cumulative triangle to incremental
+incr <- cum2incr(GenIns)
+
+# Check if Dirichlet model is appropriate
+diagnose_c(incr)
+#> c_hat = 107.7 >= 30: stable development. Multinomial framework appropriate.
+
+# Predictive intervals (works with ANY development proportions)
+boot <- multinomial_bootstrap(incr, B = 10000)
+print(boot)
+
+# Use with Bornhuetter-Ferguson or any custom proportions
+boot_bf <- multinomial_bootstrap(incr, pi_hat = my_bf_proportions, B = 10000)
+
+# Fast delta method (no bootstrap)
+delta_method_var(incr)
+```
+
+## Quick Start — NB-CL
 
 ```r
 library(hgr)
 
-# Fit model to triangle
 fit <- fit_nbcl(triangle)
-print(fit)
-
-# Get reserve estimates
-reserves <- reserve_nbcl(fit)
-
-# Bootstrap prediction intervals (with REML correction)
 boot <- bootstrap_nbcl(fit, B = 5000, correct_kappa = TRUE)
 predict_interval(boot, level = 0.95)
-
-# Diagnostics
-plot_diagnostics(fit)
 ```
 
-## Quick Start - UCR
+## Quick Start — UCR
 
 ```r
 library(hgr)
 
-# Define your triangle (cumulative claims)
-triangle <- matrix(c(
-  357848, 1124788, 1735330, 2218270, 2745596, 3319994, 3466336, 3606286, 3833515, 3901463,
-  352118, 1236139, 2170033, 3353322, 3799067, 4120063, 4647867, 4914039, 5339085, NA,
-  # ... etc
-), nrow = 10, ncol = 10, byrow = TRUE)
-
-# Fit UCR
 ucr_fit <- ucr(triangle)
-print(ucr_fit)
 summary(ucr_fit)
-
-# Compare methods
-comparison <- compare_reserves(triangle)
-print(comparison)
-
-# Mack model with variance estimation
-mack_fit <- fit_mack(triangle)
-print(mack_fit)
-predict_intervals(mack_fit)
+compare_reserves(triangle)
 ```
 
 ## Key Functions
+
+### Multinomial Bootstrap
+
+| Function | Description |
+|----------|-------------|
+| `multinomial_bootstrap()` | Model-agnostic predictive intervals |
+| `estimate_dev_proportions()` | Chain-Ladder development proportions |
+| `estimate_c()` | Dirichlet concentration parameter |
+| `diagnose_c()` | Concentration diagnostic (c < 30?) |
+| `delta_method_var()` | Fast closed-form variance |
+| `bayesian_bootstrap()` | Bayesian extension with MCMC |
 
 ### Reserving Methods
 
@@ -94,15 +109,6 @@ predict_intervals(mack_fit)
 | `fit_mack()` | Mack's distribution-free model |
 | `compare_reserves()` | Compare all methods |
 
-### Credibility Theory
-
-| Function | Description |
-|----------|-------------|
-| `buhlmann()` | Bühlmann credibility estimator |
-| `buhlmann_straub()` | Bühlmann-Straub credibility estimator |
-| `estimate_bs_params()` | Estimate variance components |
-| `three_source_credibility()` | Three-source credibility |
-
 ### NB-CL Model
 
 | Function | Description |
@@ -111,29 +117,9 @@ predict_intervals(mack_fit)
 | `bootstrap_nbcl()` | Parametric bootstrap with bias correction |
 | `profile_kappa()` | Profile likelihood for dispersion |
 
-### Simulation
-
-| Function | Description |
-|----------|-------------|
-| `simulate_triangle()` | Generate from Poisson-Gamma-Multinomial |
-| `run_ucr_simulation()` | Run UCR simulation study |
-
-## The Key Insight
-
-Every classical reserving method is a credibility estimator:
-
-| Method | Credibility Interpretation |
-|--------|---------------------------|
-| Chain-Ladder | Full credibility on individual experience (Z = 1) |
-| Cape Cod | Full credibility on pooled experience (Z = 0) |
-| Bornhuetter-Ferguson | Separation credibility with informative prior |
-| UCR | Data-adaptive credibility (Z estimated from data) |
-
-UCR estimates the between-year heterogeneity τ² and sets:
-- **High τ²** → High Z → UCR ≈ Chain-Ladder
-- **Low τ²** → Low Z → UCR ≈ Cape Cod
-
 ## References
+
+Van Oirbeek, R. and Verdonck, T. (2026). Model-Agnostic Predictive Intervals for Claims Reserving via Dirichlet-Multinomial Allocation. *Working Paper*.
 
 Van Oirbeek, R. (2026). The Negative Binomial Chain-Ladder: A Full Likelihood Model for Claim Count Reserving. *Working Paper*.
 
