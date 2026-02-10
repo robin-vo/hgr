@@ -134,18 +134,32 @@ triangle <- GenIns   # UCR works on cumulative data
 # Optional: choose an exposure measure (default = first development period)
 exposure <- triangle[, 1]
 
-# Fit the Unified Credibility Reserving model
+# 1. Fit the Unified Credibility Reserving model
 ucr_fit <- ucr(triangle, exposure = exposure)
 
-# Inspect credibility structure and reserve estimates
+# 2. Inspect credibility structure and reserve estimates
 print(ucr_fit)
 
-# Visual diagnostics (rates, credibility weights, reserve comparison)
+# 3. Visual diagnostics (rates, credibility weights, reserve comparison)
 plot(ucr_fit, which = 1:3)
 
-# Compare classical methods and UCR
+# 4. Compare classical methods and UCR
 comparison <- compare_reserves(triangle, exposure = exposure)
 print(comparison)
+
+# 5. Extract credibility weights directly
+ucr_fit$Z1        # accident‑year credibility
+ucr_fit$Lambda_CL # individual CL rates
+ucr_fit$Lambda_UCR# credibility‑adjusted rates
+
+# 6. Access variance components
+ucr_fit$sigma_sq   # process variance
+ucr_fit$tau_sq_hat # between‑year variance
+ucr_fit$k          # sigma^2 / tau^2
+
+# 7. Mack comparison (distribution‑free benchmark)
+mack_fit <- fit_mack(triangle)
+print(mack_fit)
 ```
 
 ## Key Functions
