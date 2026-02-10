@@ -77,17 +77,40 @@ delta_method_var(incr)
 library(hgr)
 library(ChainLadder)
 
-# Convert to incremental triangle (NB-CL works on incremental data)
+# Convert cumulative triangle to incremental (NB‑CL works on incremental data)
 incr <- cum2incr(GenIns)
 
-# Fit Negative Binomial Chain-Ladder
+# Fit Negative Binomial Chain‑Ladder
 fit <- fit_nbcl(incr)
+print(fit)          # model summary, kappa correction, AIC/BIC
+summary(fit)        # coefficients and diagnostics
 
-# Parametric bootstrap for predictive distribution
+# Deterministic reserve estimate (mean prediction)
+reserve_nbcl(fit)
+
+# Predict lower‑triangle means
+pred <- predict_nbcl(fit)
+head(pred)
+
+# Parametric bootstrap for full predictive distribution
 boot <- bootstrap_nbcl(fit, B = 5000, correct_kappa = TRUE)
 
 # Prediction interval for the total reserve
 predict_interval(boot, level = 0.95)
+
+# Distribution of accident‑year reserves
+boot$reserves_by_ay[1:5, ]
+
+# Inspect bootstrap dispersion estimates
+hist(boot$kappas, main = "Bootstrap kappa", xlab = "kappa")
+
+# Diagnostics: residuals, AY/DY patterns, profile likelihood for kappa
+plot_diagnostics(fit, which = 1:4)
+
+# Profile likelihood for kappa (standalone)
+prof <- profile_kappa(fit)
+plot(prof)
+
 ```
 
 ## Quick Start — UCR
