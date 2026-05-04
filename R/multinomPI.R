@@ -93,7 +93,6 @@ estimate_dev_proportions <- function(triangle) {
   list(pi_hat = pi_hat, F_hat = F_hat)
 }
 
-
 # ===========================================================================
 # CONCENTRATION PARAMETER ESTIMATION
 # ===========================================================================
@@ -108,8 +107,9 @@ estimate_dev_proportions <- function(triangle) {
 #' @param pi_hat Numeric vector. Development proportions. If \code{NULL},
 #'   estimated from the triangle.
 #'
-#' @return Scalar estimate of \eqn{c}. Returns 50 (diffuse default) if
-#'   insufficient data.
+#' @return Scalar estimate of \eqn{c}. Returns 50 with a warning if
+#'   insufficient data are available; truncates upward to 1 with a
+#'   warning if the median estimate falls below 1.
 #'
 #' @details
 #' For each development horizon \eqn{k = 2, \ldots, J-1}, partial
@@ -153,8 +153,21 @@ estimate_c <- function(triangle, pi_hat = NULL) {
     c_est <- c(c_est, cj)
   }
 
-  if (length(c_est) == 0) return(50)
-  max(median(c_est), 1)
+if (length(c_est) == 0) {
+    warning("Insufficient data to estimate c; returning default value of 50. ",
+            "Bootstrap intervals will not reflect true uncertainty in c.",
+            call. = FALSE)
+    return(50)
+  }
+  c_med <- median(c_est)
+  if (c_med < 1) {
+    warning(sprintf("Estimated c = %.2f truncated to 1; allocation is highly heterogeneous, ",
+                    c_med),
+            "consider frailty models from the CNBG paper.",
+            call. = FALSE)
+    return(1)
+  }
+  c_med
 }
 
 
@@ -282,7 +295,22 @@ multinomial_bootstrap <- function(triangle, pi_hat = NULL, c_param = NULL,
     by_origin    = by_origin
   ), class = "multinomial_boot")
 }
-
+#' @export
+print.multinomial_boot <- function(x, ...) {
+  cat("Multinomial Parametric Bootstrap\n")
+  cat(sprintf("  B = %d, level = %.0f%%\n", x$B, 100 * x$level))
+  cat(sprintf("  Concentration c = %.1f", x$c_hat))
+  if (x$c_hat < 30) cat("  [WARNING: c < 30, consider richer models]")
+  cat("\n\n")
+  cat(sprintf("  CL reserve:       %12.0f\n", x$reserve_cl))
+  cat(sprintf("  Bootstrap mean:   %12.0f\n", x$reserve_mean))
+  cat(sprintf("  Bootstrap SE:     %12.0f\n", x$reserve_se))
+  cat(sprintf("  CV:               %11.1f%%\n", 100 * x$cv))
+  cat(sprintf("  %.0f%% PI:       [%12.0f, %12.0f]\n",
+              100 * x$level, x$ci_lower, x$ci_upper))
+  invisible(x)
+}
+                          
 # ===========================================================================
 # DELTA METHOD APPROXIMATION
 # ===========================================================================
