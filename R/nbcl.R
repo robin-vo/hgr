@@ -62,6 +62,49 @@ long_to_triangle <- function(df, I = NULL, J = NULL) {
   return(triangle)
 }
 
+#' Reparameterise glm.nb output to the simplex convention
+#'
+#' Standard glm.nb output uses treatment contrasts (beta_0 = 0). This function
+#' converts to the simplex convention sum_j exp(beta_j) = 1, under which
+#' mu_i = exp(alpha_i) is the expected total claim count for accident year i
+#' and w_j = exp(beta_j) is the proportion of ultimate claims reported in
+#' development year j.
+#'
+#' The cell means mu_{ij} = exp(alpha_i + beta_j) are invariant under this
+#' transformation; only the interpretation of individual coefficients changes.
+#'
+#' @param fit A fitted glm.nb object with AY and DY factors
+#' @return A list with components alpha, beta, mu, w (see Details).
+#' @export
+reparam_simplex <- function(fit) {
+  cf        <- coef(fit)
+  intercept <- unname(cf["(Intercept)"])
+  
+  ay_levels <- levels(model.frame(fit)$AY)
+  dy_levels <- levels(model.frame(fit)$DY)
+  
+  # Build full alpha and beta vectors (reference level = 0)
+  alpha_tilde        <- setNames(rep(0, length(ay_levels)), ay_levels)
+  beta_tilde         <- setNames(rep(0, length(dy_levels)), dy_levels)
+  alpha_tilde[-1]    <- unname(cf[grep("^AY", names(cf))])
+  beta_tilde[-1]     <- unname(cf[grep("^DY", names(cf))])
+  
+  # Absorb intercept into alpha
+  alpha_tilde <- alpha_tilde + intercept
+  
+  # Simplex transformation
+  S     <- sum(exp(beta_tilde))
+  alpha <- alpha_tilde + log(S)
+  beta  <- beta_tilde  - log(S)
+  
+  list(
+    alpha = alpha,      # log AY totals; mu_i = exp(alpha_i)
+    beta  = beta,       # log development weights; sum_j exp(beta_j) = 1
+    mu    = exp(alpha), # AY totals
+    w     = exp(beta)   # development weights, sum to 1
+  )
+}
+
 # =============================================================================
 # Core model fitting
 # =============================================================================
@@ -69,36 +112,57 @@ long_to_triangle <- function(df, I = NULL, J = NULL) {
 #' Fit Negative Binomial Chain-Ladder model
 #'
 #' @param triangle A matrix representing the run-off triangle (incremental claims)
-#' @param link Link function (default log)
 #' @return An object of class "nbcl" containing the fitted model and metadata
 #' @export
-
 fit_nbcl <- function(triangle) {
   df <- triangle_to_long(triangle)
-  n <- nrow(df)
+  n  <- nrow(df)
   
   fit <- MASS::glm.nb(A ~ AY + DY, data = df, link = log)
   
-  p <- length(coef(fit))
+  p         <- length(coef(fit))
   kappa_mle <- fit$theta
   kappa_adj <- kappa_mle * (n - p) / n
   
+  # Simplex parameterisation: mu_i = exp(alpha_i), sum_j exp(beta_j) = 1
+  simplex <- reparam_simplex(fit)
+  
   result <- list(
-    fit = fit,
-    triangle = triangle,
-    data = df,
-    n = n,
-    p = p,
-    kappa_mle = kappa_mle,
-    kappa_corrected = kappa_adj,
+    fit               = fit,
+    triangle          = triangle,
+    data              = df,
+    n                 = n,
+    p                 = p,
+    kappa_mle         = kappa_mle,
+    kappa_corrected   = kappa_adj,
     correction_factor = (n - p) / n,
-    aic = AIC(fit),
-    bic = BIC(fit),
-    loglik = as.numeric(logLik(fit))
+    alpha             = simplex$alpha,   # log AY totals
+    beta              = simplex$beta,    # log development weights
+    mu                = simplex$mu,      # AY totals
+    w                 = simplex$w,       # development weights
+    aic               = AIC(fit),
+    bic               = BIC(fit),
+    loglik            = as.numeric(logLik(fit))
   )
   
   class(result) <- "nbcl"
   return(result)
+}
+
+#' Coefficients in the simplex parameterisation
+#'
+#' Returns alpha (log AY totals) and beta (log development weights satisfying
+#' sum_j exp(beta_j) = 1). This is the parameterisation used throughout the
+#' NB-CL paper and differs from the treatment-contrast coefficients returned
+#' by the underlying glm.nb fit.
+#'
+#' @param object An object of class "nbcl"
+#' @param ... Additional arguments (ignored)
+#' @return A named numeric vector of simplex-parameterised coefficients.
+#' @export
+coef.nbcl <- function(object, ...) {
+  c(setNames(object$alpha, paste0("alpha[", names(object$alpha), "]")),
+    setNames(object$beta,  paste0("beta[",  names(object$beta),  "]")))
 }
 
 #' Extract bias-corrected kappa
@@ -129,10 +193,18 @@ print.nbcl <- function(x, ...) {
   cat("Triangle size:", nrow(x$triangle), "x", ncol(x$triangle), "\n")
   cat("Observations:", x$n, "\n")
   cat("Parameters:", x$p, "\n\n")
+  
   cat("Dispersion parameter (kappa):\n")
   cat("  MLE:       ", round(x$kappa_mle, 3), "\n")
   cat("  Corrected: ", round(x$kappa_corrected, 3), "\n")
   cat("  Correction factor (n-p)/n:", round(x$correction_factor, 3), "\n\n")
+  
+  cat("Accident-year totals (mu_i = exp(alpha_i)):\n")
+  print(round(x$mu, 1))
+  cat("\nDevelopment weights (w_j = exp(beta_j), sum to 1):\n")
+  print(round(x$w, 4))
+  cat("  sum =", round(sum(x$w), 6), "\n\n")
+  
   cat("Model fit:\n")
   cat("  Log-likelihood:", round(x$loglik, 2), "\n")
   cat("  AIC:", round(x$aic, 2), "\n")
@@ -148,8 +220,10 @@ summary.nbcl <- function(object, ...) {
   cat("Negative Binomial Chain-Ladder Model Summary\n")
   cat("=============================================\n\n")
   print(object)
-  cat("\nCoefficients:\n")
+  cat("\nUnderlying GLM coefficients (treatment contrasts, beta_0 = 0):\n")
   print(summary(object$fit)$coefficients)
+  cat("\nNote: paper convention uses simplex parameterisation\n")
+  cat("  (sum_j exp(beta_j) = 1; see fields $alpha, $beta, $mu, $w).\n")
 }
 
 # =============================================================================
