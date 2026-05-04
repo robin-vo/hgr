@@ -164,39 +164,55 @@ estimate_c <- function(triangle, pi_hat = NULL) {
 
 #' Multinomial Parametric Bootstrap for Predictive Intervals
 #'
-#' Model-agnostic predictive intervals for total outstanding reserves.
-#' Any development proportions can be supplied; the framework adds a
-#' single Dirichlet concentration parameter \eqn{c} to produce full
-#' predictive distributions.
+#' Model-agnostic predictive intervals for total outstanding reserves
+#' implementing the conditioning principle: the observed triangle is
+#' held fixed and only the allocation proportion
+#' \eqn{W_i \sim \mathrm{Beta}(c F_{I-i}, c(1-F_{I-i}))} is sampled per
+#' accident year per replication. Any vector of cumulative development
+#' proportions \eqn{\hat{F}} can be supplied --- from Chain-Ladder,
+#' Bornhuetter-Ferguson, Cape Cod, or any other procedure.
 #'
-#' @param triangle Numeric matrix. Incremental run-off triangle.
-#' @param pi_hat Numeric vector. Development proportions. If \code{NULL},
-#'   estimated via Chain-Ladder.
-#' @param c_param Scalar. Dirichlet concentration. If \code{NULL},
-#'   estimated from the triangle.
+#' @param triangle Numeric matrix. Incremental run-off triangle with
+#'   \code{NA} for unobserved cells.
+#' @param pi_hat Numeric vector. Development proportions summing to 1.
+#'   If \code{NULL}, estimated from the triangle via Chain-Ladder.
+#' @param c_param Scalar. Dirichlet concentration parameter. If
+#'   \code{NULL}, estimated from the triangle via the partial-column
+#'   moment estimator.
 #' @param B Integer. Bootstrap replications (default 10000).
 #' @param level Numeric. Confidence level (default 0.95).
 #'
 #' @return A list with:
 #' \describe{
 #'   \item{reserve_cl}{Chain-Ladder point estimate.}
-#'   \item{reserve_mean}{Bootstrap mean.}
+#'   \item{reserve_mean}{Bootstrap mean of the total reserve.}
 #'   \item{reserve_se}{Bootstrap standard error.}
 #'   \item{ci_lower, ci_upper}{Predictive interval bounds.}
-#'   \item{cv}{Coefficient of variation.}
+#'   \item{cv}{Coefficient of variation of the bootstrap distribution.}
 #'   \item{c_hat}{Concentration parameter used.}
 #'   \item{pi_hat, F_hat}{Development proportions used.}
-#'   \item{samples}{Vector of bootstrap reserve samples.}
+#'   \item{samples}{Vector of \eqn{B} bootstrap reserve samples.}
 #'   \item{by_origin}{Per-accident-year breakdown.}
 #' }
 #'
 #' @details
-#' The bootstrap samples ultimates from
-#' \eqn{S_i \sim \mathrm{Gamma}(\alpha, \alpha / \hat{S}_i)} and
-#' allocations from \eqn{W_i \sim \mathrm{Dir}(c \hat{\pi})}, truncates
-#' to the run-off shape, re-estimates development factors, and computes
-#' reserves. Process risk is captured through Gamma-Dirichlet sampling;
-#' parameter risk through re-estimation.
+#' The bootstrap implements Algorithm 1 of Van Oirbeek and Verdonck
+#' (2026): for each accident year \eqn{i} with observed cumulative
+#' payment \eqn{X_i^{\mathrm{obs}}} and \eqn{F_{I-i} < 1}, draw
+#' \eqn{W_i \sim \mathrm{Beta}(\hat{c} F_{I-i}, \hat{c}(1-F_{I-i}))}
+#' and set \eqn{S_i^{\mathrm{IBNP}} = X_i^{\mathrm{obs}} (1-W_i)/W_i}.
+#' The observed triangle enters only through the fixed quantities
+#' \eqn{X_i^{\mathrm{obs}}} and \eqn{F_{I-i}}; no resampling of cells,
+#' no re-estimation of development factors. The coverage deficit is
+#' \eqn{O(I^{-1/2})} and independent of \eqn{J} (Theorem 7.4 of the
+#' paper).
+#'
+#' Under compound Poisson data-generating processes the bootstrap is
+#' uniformly conservative, with predictive standard deviation exceeding
+#' the truth by a factor of \eqn{1/\sqrt{F_{I-i}} > 1} (Theorem 7.5).
+#' The diagnostic threshold \eqn{\hat{c} < 30} signals substantial
+#' accident-year heterogeneity; in this regime, richer models with
+#' explicit frailty are recommended.
 #'
 #' @export
 multinomial_bootstrap <- function(triangle, pi_hat = NULL, c_param = NULL,
@@ -214,45 +230,24 @@ multinomial_bootstrap <- function(triangle, pi_hat = NULL, c_param = NULL,
 
   if (is.null(c_param)) c_param <- estimate_c(triangle, pi_hat)
 
-  # Ultimates
   X_obs <- rowSums(triangle, na.rm = TRUE)
   k_obs <- pmin(I - seq_len(I) + 1, J)
-  S_ult <- X_obs / F_hat[k_obs]
-
-  # Gamma shape
-  cv_ult <- sd(S_ult) / mean(S_ult)
-  if (cv_ult < 0.01) cv_ult <- 0.1
-  alpha_tot <- 1 / cv_ult^2
+  F_obs <- F_hat[k_obs]
 
   # CL point estimate
-  reserve_cl <- sum(ifelse(k_obs < J, X_obs * (1 - F_hat[k_obs]) / F_hat[k_obs], 0))
+  reserve_cl <- sum(ifelse(k_obs < J, X_obs * (1 - F_obs) / F_obs, 0))
 
-  # Bootstrap
-  total_res <- numeric(B)
+  # Bootstrap: Algorithm 1 of the paper
+  total_res  <- numeric(B)
   origin_res <- matrix(0, B, I)
-  alpha_dir <- c_param * pi_hat
 
   for (b in seq_len(B)) {
-    X_star <- matrix(0, I, J)
     for (i in seq_len(I)) {
-      S <- rgamma(1, shape = alpha_tot, rate = alpha_tot / S_ult[i])
-      W <- rdirichlet_(1, alpha_dir)[1, ]
-      X_star[i, ] <- S * W
-    }
-    for (i in seq_len(I)) {
-      k <- I - i + 1
-      if (k < J) X_star[i, (k + 1):J] <- NA
-    }
-
-    dev_s <- estimate_dev_proportions(X_star)
-    Fs <- dev_s$F_hat
-
-    for (i in seq_len(I)) {
-      k <- I - i + 1
-      if (k < J) {
-        Xo <- sum(X_star[i, 1:k], na.rm = TRUE)
-        if (Xo > 0 && Fs[k] > 0 && Fs[k] < 1) {
-          origin_res[b, i] <- Xo * (1 - Fs[k]) / Fs[k]
+      if (k_obs[i] < J && F_obs[i] > 0 && F_obs[i] < 1) {
+        W_b <- rbeta(1, c_param * F_obs[i], c_param * (1 - F_obs[i]))
+        # Guard against W near zero
+        if (W_b > 1e-10) {
+          origin_res[b, i] <- X_obs[i] * (1 - W_b) / W_b
         }
       }
     }
@@ -265,8 +260,8 @@ multinomial_bootstrap <- function(triangle, pi_hat = NULL, c_param = NULL,
   by_origin <- data.frame(
     origin       = seq_len(I),
     observed     = X_obs,
-    ultimate     = S_ult,
-    reserve_cl   = ifelse(k_obs < J, X_obs * (1 - F_hat[k_obs]) / F_hat[k_obs], 0),
+    F_obs        = F_obs,
+    reserve_cl   = ifelse(k_obs < J, X_obs * (1 - F_obs) / F_obs, 0),
     reserve_mean = colMeans(origin_res),
     reserve_se   = apply(origin_res, 2, sd)
   )
@@ -287,24 +282,6 @@ multinomial_bootstrap <- function(triangle, pi_hat = NULL, c_param = NULL,
     by_origin    = by_origin
   ), class = "multinomial_boot")
 }
-
-
-#' @export
-print.multinomial_boot <- function(x, ...) {
-  cat("Multinomial Parametric Bootstrap\n")
-  cat(sprintf("  B = %d, level = %.0f%%\n", x$B, 100 * x$level))
-  cat(sprintf("  Concentration c = %.1f", x$c_hat))
-  if (x$c_hat < 30) cat("  [WARNING: c < 30, consider richer models]")
-  cat("\n\n")
-  cat(sprintf("  CL reserve:       %12.0f\n", x$reserve_cl))
-  cat(sprintf("  Bootstrap mean:   %12.0f\n", x$reserve_mean))
-  cat(sprintf("  Bootstrap SE:     %12.0f\n", x$reserve_se))
-  cat(sprintf("  CV:               %11.1f%%\n", 100 * x$cv))
-  cat(sprintf("  %.0f%% PI:       [%12.0f, %12.0f]\n",
-              100 * x$level, x$ci_lower, x$ci_upper))
-  invisible(x)
-}
-
 
 # ===========================================================================
 # DELTA METHOD APPROXIMATION
@@ -371,23 +348,60 @@ delta_method_var <- function(triangle, pi_hat = NULL, c_param = NULL) {
 
 #' Bayesian Predictive Bootstrap for Claims Reserves
 #'
-#' Places priors on \eqn{c} and \eqn{\pi} and uses MCMC to produce
-#' posterior predictive reserve distributions.
+#' Posterior predictive distribution for total outstanding reserves under
+#' the Dirichlet-Gamma model with a prior on the concentration parameter
+#' \eqn{c} and (optionally) on the development proportions \eqn{\pi}.
+#' The predictive step honours the conditioning principle: the observed
+#' triangle is held fixed and only the allocation proportion
+#' \eqn{W_i \sim \mathrm{Beta}(c F_{I-i}, c(1-F_{I-i}))} is sampled per
+#' accident year per posterior draw.
 #'
-#' @param triangle Numeric matrix. Incremental run-off triangle.
-#' @param B Integer. Predictive samples (default 5000).
+#' @param triangle Numeric matrix. Incremental run-off triangle with
+#'   \code{NA} for unobserved cells.
+#' @param B Integer. Number of posterior predictive samples (default 5000).
 #' @param mu_c Scalar. Prior mean of \eqn{\log c} (default \code{log(50)}).
-#' @param sigma_c Scalar. Prior SD of \eqn{\log c} (default 1).
-#' @param a0 Scalar. Dirichlet prior for \eqn{\pi} (default 1).
-#' @param n_mcmc Integer. MCMC iterations after burn-in (default 2000).
-#' @param burnin Integer. Burn-in (default 500).
+#' @param sigma_c Scalar. Prior standard deviation of \eqn{\log c}
+#'   (default 1).
+#' @param a0 Scalar. Symmetric Dirichlet prior concentration for
+#'   \eqn{\pi} (default 1, uniform).
+#' @param n_mcmc Integer. Number of MCMC iterations after burn-in
+#'   (default 2000).
+#' @param burnin Integer. Number of burn-in iterations to discard
+#'   (default 500).
 #' @param bayesian_c_only Logical. If \code{TRUE}, only \eqn{c} is
-#'   sampled; \eqn{\pi} fixed at plug-in.
-#' @param level Numeric. Confidence level (default 0.95).
+#'   sampled and \eqn{\pi} is fixed at the plug-in Chain-Ladder estimate.
+#'   If \code{FALSE} (default), both \eqn{c} and \eqn{\pi} are sampled.
+#' @param level Numeric. Confidence level for the predictive interval
+#'   (default 0.95).
 #'
-#' @return A list with: \code{reserve_mean}, \code{reserve_se},
-#'   \code{ci_lower}, \code{ci_upper}, \code{c_posterior_mean},
-#'   \code{c_posterior_sd}, \code{accept_rate}, \code{samples}.
+#' @return A list with:
+#' \describe{
+#'   \item{reserve_mean}{Posterior predictive mean of the total reserve.}
+#'   \item{reserve_se}{Posterior predictive standard deviation.}
+#'   \item{ci_lower, ci_upper}{Bounds of the predictive interval.}
+#'   \item{c_posterior_mean}{Posterior mean of \eqn{c}.}
+#'   \item{c_posterior_sd}{Posterior standard deviation of \eqn{c}.}
+#'   \item{accept_rate}{Metropolis acceptance rate for \eqn{c}.}
+#'   \item{samples}{Vector of \eqn{B} posterior predictive reserve samples.}
+#' }
+#'
+#' @details
+#' Recommended for small triangles (\eqn{I < 6}) where the moment
+#' estimator of \eqn{c} is unstable, or whenever a fully Bayesian
+#' uncertainty quantification is preferred. For larger triangles with
+#' \eqn{\hat{c} \geq 50}, the plug-in \code{multinomial_bootstrap} is
+#' usually sufficient.
+#'
+#' MCMC proceeds via Metropolis-within-Gibbs: \eqn{\pi} is updated
+#' from its conjugate Dirichlet posterior conditional on \eqn{c}, and
+#' \eqn{c} is updated by a random-walk Metropolis step on the log scale
+#' under the log-normal prior. Predictive samples are drawn by
+#' thinning the post-burn-in chain to \eqn{B} draws and applying the
+#' conditioning-principle bootstrap of Algorithm 1 of the paper to each.
+#'
+#' Falls back to \code{multinomial_bootstrap} when fewer than two
+#' accident years have at least three observed columns, since the
+#' Dirichlet likelihood requires partial-row data.
 #'
 #' @export
 bayesian_bootstrap <- function(triangle, B = 5000,
@@ -402,7 +416,11 @@ bayesian_bootstrap <- function(triangle, B = 5000,
   pi_hat <- dev$pi_hat
   F_hat  <- dev$F_hat
 
-  # Usable rows (>= 3 observed columns)
+  # Conditioning quantities: held fixed throughout the predictive loop
+  X_obs <- rowSums(triangle, na.rm = TRUE)
+  k_obs <- pmin(I - seq_len(I) + 1, J)
+
+  # Usable rows for likelihood (>= 3 observed columns)
   min_cols <- min(3, J)
   usable <- which(apply(triangle, 1, function(x) sum(!is.na(x)) >= min_cols))
 
@@ -411,7 +429,7 @@ bayesian_bootstrap <- function(triangle, B = 5000,
     return(multinomial_bootstrap(triangle, B = B, level = level))
   }
 
-  # Partial-row data
+  # Partial-row Dirichlet observations
   W_list <- list()
   cols_list <- list()
   for (i in usable) {
@@ -429,15 +447,7 @@ bayesian_bootstrap <- function(triangle, B = 5000,
     return(multinomial_bootstrap(triangle, B = B, level = level))
   }
 
-  # Ultimates
-  X_obs <- rowSums(triangle, na.rm = TRUE)
-  k_obs <- pmin(I - seq_len(I) + 1, J)
-  S_ult <- X_obs / F_hat[k_obs]
-  cv_ult <- sd(S_ult) / mean(S_ult)
-  if (cv_ult < 0.01) cv_ult <- 0.1
-  alpha_tot <- 1 / cv_ult^2
-
-  # MCMC
+  # MCMC: Metropolis-within-Gibbs on (c, pi)
   c_cur <- estimate_c(triangle, pi_hat)
   if (c_cur < 1) c_cur <- 10
   pi_cur <- pi_hat
@@ -449,7 +459,7 @@ bayesian_bootstrap <- function(triangle, B = 5000,
 
   for (iter in seq_len(n_mcmc + burnin)) {
 
-    # Update pi | c
+    # Update pi | c, data (Dirichlet conjugate)
     if (!bayesian_c_only) {
       col_w <- numeric(J)
       for (idx in seq_along(W_list)) {
@@ -459,7 +469,7 @@ bayesian_bootstrap <- function(triangle, B = 5000,
       pi_cur <- rdirichlet_(1, pmax(a0 + col_w, 0.01))[1, ]
     }
 
-    # Update c | pi (Metropolis)
+    # Update c | pi, data (Metropolis on log scale)
     lc_prop <- rnorm(1, log(c_cur), prop_sd)
     c_prop  <- exp(lc_prop)
 
@@ -488,34 +498,25 @@ bayesian_bootstrap <- function(triangle, B = 5000,
     }
   }
 
-  # Predictive bootstrap from posterior
+  # Predictive bootstrap: conditioning principle (Algorithm 1)
   thin <- round(seq(1, n_mcmc, length.out = B))
   total_res <- numeric(B)
 
   for (b in seq_len(B)) {
     cb  <- c_samp[thin[b]]
     pib <- if (bayesian_c_only) pi_hat else pi_samp[thin[b], ]
+    Fb  <- cumsum(pib)
 
-    X_star <- matrix(0, I, J)
-    for (i in seq_len(I)) {
-      S <- rgamma(1, shape = alpha_tot, rate = alpha_tot / S_ult[i])
-      W <- rdirichlet_(1, cb * pib)[1, ]
-      X_star[i, ] <- S * W
-    }
-    for (i in seq_len(I)) {
-      k <- I - i + 1
-      if (k < J) X_star[i, (k + 1):J] <- NA
-    }
-
-    dev_s <- estimate_dev_proportions(X_star)
-    Fs <- dev_s$F_hat
     res <- 0
     for (i in seq_len(I)) {
-      k <- I - i + 1
-      if (k < J) {
-        Xo <- sum(X_star[i, 1:k], na.rm = TRUE)
-        if (Xo > 0 && Fs[k] > 0 && Fs[k] < 1) {
-          res <- res + Xo * (1 - Fs[k]) / Fs[k]
+      ki <- k_obs[i]
+      if (ki < J) {
+        F_i <- Fb[ki]
+        if (F_i > 0 && F_i < 1 && X_obs[i] > 0) {
+          W_b <- rbeta(1, cb * F_i, cb * (1 - F_i))
+          if (W_b > 1e-10) {
+            res <- res + X_obs[i] * (1 - W_b) / W_b
+          }
         }
       }
     }
@@ -536,8 +537,7 @@ bayesian_bootstrap <- function(triangle, B = 5000,
     samples          = total_res
   )
 }
-
-
+                        
 # ===========================================================================
 # DIAGNOSTIC
 # ===========================================================================
