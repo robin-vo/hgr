@@ -263,32 +263,68 @@ predict_nbcl <- function(object, newdata = NULL) {
   return(future)
 }
 
-#' Calculate reserve estimates
-#'
-#' @param object An object of class "nbcl"
-#' @return A list with total reserve and reserves by accident year
-#' @export
 reserve_nbcl <- function(object) {
   if (!inherits(object, "nbcl")) {
     stop("Object must be of class 'nbcl'")
   }
   
-  future <- predict_nbcl(object)
+  triangle <- object$triangle
+  I <- nrow(triangle)
+  J <- ncol(triangle)
   
-  total <- sum(future$fitted)
+  # Compute cumulative triangle (treating NAs as missing future cells)
+  cum_tri <- t(apply(triangle, 1, function(row) {
+    cumsum(replace(row, is.na(row), 0))
+  }))
+  # Restore NAs in the lower triangle
+  for (i in 1:I) {
+    for (j in 1:J) {
+      if (is.na(triangle[i, j])) cum_tri[i, j] <- NA
+    }
+  }
   
-  by_ay <- aggregate(fitted ~ AY, data = future, FUN = sum)
-  names(by_ay) <- c("AY", "Reserve")
-  by_ay$AY <- as.integer(as.character(by_ay$AY))
+  # Chain-Ladder development factors
+  dev_factors <- numeric(J - 1)
+  for (j in 1:(J - 1)) {
+    num <- sum(cum_tri[1:(I - j), j + 1], na.rm = TRUE)
+    den <- sum(cum_tri[1:(I - j), j],     na.rm = TRUE)
+    dev_factors[j] <- num / den
+  }
   
-  result <- list(
-    total = total,
-    by_accident_year = by_ay
+  # Project ultimates
+  ultimates <- numeric(I)
+  ultimates[1] <- cum_tri[1, J]
+  for (i in 2:I) {
+    last_obs    <- J - i + 1
+    ultimates[i] <- cum_tri[i, last_obs]
+    if (last_obs < J) {
+      for (j in last_obs:(J - 1)) {
+        ultimates[i] <- ultimates[i] * dev_factors[j]
+      }
+    }
+  }
+  
+  # Reserves = ultimate - latest observed cumulative
+  reserves <- numeric(I)
+  for (i in 1:I) {
+    last_obs    <- J - i + 1
+    reserves[i] <- ultimates[i] - cum_tri[i, last_obs]
+  }
+  
+  by_ay <- data.frame(
+    AY      = 1:I,
+    Reserve = reserves
   )
+  by_ay <- by_ay[by_ay$AY > 1, ]  # AY 1 has no reserve
+  rownames(by_ay) <- NULL
   
-  return(result)
+  list(
+    total            = sum(reserves[-1]),
+    by_accident_year = by_ay,
+    ultimates        = ultimates,
+    dev_factors      = dev_factors
+  )
 }
-
 # =============================================================================
 # Bootstrap
 # =============================================================================
