@@ -1005,3 +1005,36 @@ credibility_bayes_equivalence <- function(n_obs, exposure, mu, tau_sq) {
     note = "Difference should be ~0: credibility = posterior mean"
   )
 }
+
+# MML estimator of (mu, tau^2) under PGMD via NegBin marginal
+# Drop-in alongside hgr's BS estimator.
+
+mml_estimator <- function(N_obs, w) {
+  # N_obs: vector of observed cumulative counts per AY
+  # w:     vector of effective exposures, w_i = E_i * F_{j_i}
+  # Returns list with mu_hat, tau2_hat.
+  #
+  # Uses MASS::glm.nb with log-link and offset log(w).
+  # MASS parameterisation: var(N) = mu + mu^2/theta.
+  # PGMD parameterisation: var(N|mu,tau2) = m + (tau2/mu) * m^2 where m = mu*w.
+  # Matching: 1/theta = tau2/mu, i.e. tau2 = mu/theta. (Note: NOT mu^2/theta.)
+  # Equivalently, theta = mu^2/tau2 (the NB size parameter from Lemma 2.4).
+
+  fit <- MASS::glm.nb(N_obs ~ 1 + offset(log(w)),
+                      link = log,
+                      control = glm.control(maxit = 200))
+  mu_hat   <- as.numeric(exp(coef(fit)))
+  theta    <- fit$theta                # NB size; theta = mu^2 / tau2
+  tau2_hat <- mu_hat^2 / theta
+
+  list(mu = mu_hat, tau2 = tau2_hat, theta = theta, fit = fit)
+}
+
+# Sanity check on Taylor-Ashe (should give numbers close to but not identical to BS):
+# library(ChainLadder); data(GenIns)
+# tri <- as.triangle(GenIns)  # adapt to hgr conventions
+# ... compute N_obs and w from triangle ...
+# bs  <- hgr::ucr_bs(N_obs, w)
+# mml <- mml_estimator(N_obs, w)
+# print(c(bs_tau2 = bs$tau2, mml_tau2 = mml$tau2))
+
