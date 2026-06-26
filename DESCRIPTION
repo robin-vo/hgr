@@ -1,10 +1,10 @@
 Package: hgr
-Title: A Unified Framework for Claims Reserving
+Title: The hidden grammar of reserving
 Version: 0.3.0
 Authors@R: 
     person("Robin", "Van Oirbeek", , "robin.vanoirbeek@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = ""))
-Description: Implements a unified framework for claims reserving in non-life insurance,
+Description: Implements a unified framework for macro-level reserving in non-life insurance,
     based on the insight that classical reserving methods are credibility estimators.
     Includes the Negative Binomial Chain-Ladder (NB-CL) model, Unified Credibility
     Reserving (UCR), Mack's distribution-free model, classical Bühlmann-Straub
