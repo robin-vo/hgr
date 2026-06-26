@@ -1,6 +1,6 @@
 # hgr
 
-An R package implementing methods for hierarchical claims reserving models in non-life insurance, currently including: 
+An R package implementing methods for the hidden grammar of reserving models in non-life insurance, currently including: 
 
 - the Negative Binomial Chain-Ladder (NB-CL) model
 - a Unified Credibility Reserving (UCR) framework based on the insight that **classical reserving methods are credibility estimators**
