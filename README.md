@@ -137,6 +137,14 @@ exposure <- triangle[, 1]
 # 1. Fit the Unified Credibility Reserving model
 ucr_fit <- ucr(triangle, exposure = exposure)
 
+# 1b. Dispersion-corrected UCR for real amount data (Sec. 4.8):
+#     required on premium-scaled losses, where the Poisson convention
+#     collapses UCR onto Chain-Ladder
+ucr_fit <- ucr(triangle, exposure = exposure, dispersion = "odp")
+
+# 1c. MML estimator of tau^2 instead of Bühlmann-Straub (Sec. 4.6):
+ucr_fit <- ucr(triangle, exposure = exposure, method = "mml")
+
 # 2. Inspect credibility structure and reserve estimates
 print(ucr_fit)
 
