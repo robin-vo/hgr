@@ -500,132 +500,104 @@ three_source_credibility <- function(x, w, mu_pool, mu_prior,
   )
 }
 
-# =============================================================================
-# PART 4: UNIFIED CREDIBILITY RESERVING (UCR)
-# =============================================================================
+ucr <- function(triangle, exposure = NULL, F_cum = NULL,
+                prior_mean = NULL, prior_var = NULL, sigma_sq = NULL,
+                method = c("bs", "mml"),
+                dispersion = c("poisson", "odp"),
+                mml_theta_cap = 1e4) {     # <-- SET THIS from Change 3
+  method     <- match.arg(method)
+  dispersion <- match.arg(dispersion)
 
-#' Unified Credibility Reserving (UCR)
-#'
-#' UCR is a general credibility-based reserving method that nests Chain-Ladder,
-#' Cape Cod, and Bornhuetter-Ferguson as special cases. It adaptively estimates
-#' credibility weights from the data using the Bühlmann-Straub framework.
-#'
-#' @param triangle A matrix representing the run-off triangle (cumulative claims)
-#' @param exposure Vector of exposures (default: first period claims)
-#' @param F_cum Optional vector of cumulative development proportions
-#' @param prior_mean Optional external prior mean (mu_0)
-#' @param prior_var Optional external prior variance (tau_0^2)
-#' @param sigma_sq Optional process variance (default: estimated as pooled rate)
-#' @return An object of class "ucr" with reserve estimates and diagnostics
-#' @export
-ucr <- function(triangle, exposure = NULL, F_cum = NULL, 
-                prior_mean = NULL, prior_var = NULL, sigma_sq = NULL) {
-  I <- nrow(triangle)
-  J <- ncol(triangle)
-  
-  if (is.null(F_cum)) {
-    dev <- estimate_development(triangle)
-    F_cum <- dev$F_cum
-  }
-  
-  if (is.null(exposure)) {
-    exposure <- triangle[, 1]
-  }
-  
-  # Get observed cumulative for each accident year
-  C_obs <- numeric(I)
-  j_obs <- numeric(I)
-  for (i in 1:I) {
-    j_obs[i] <- max(which(!is.na(triangle[i, ])))
-    C_obs[i] <- triangle[i, j_obs[i]]
-  }
-  
+  I <- nrow(triangle); J <- ncol(triangle)
+  if (is.null(F_cum)) F_cum <- estimate_development(triangle)$F_cum
+  if (is.null(exposure)) exposure <- triangle[, 1]
+
+  C_obs <- numeric(I); j_obs <- numeric(I)
+  for (i in 1:I) { j_obs[i] <- max(which(!is.na(triangle[i, ]))); C_obs[i] <- triangle[i, j_obs[i]] }
   F_obs <- F_cum[j_obs]
   w <- exposure * F_obs
-  
-  # Individual Chain-Ladder rates
   Lambda_CL <- C_obs / w
-  
-  # Pooled rate (Cape Cod)
   mu_pool <- sum(w * Lambda_CL) / sum(w)
-  
-  # Process variance
+
+  # ---- Process variance ----
+  phi_hat <- NA_real_
   if (is.null(sigma_sq)) {
-    sigma_sq <- mu_pool
-  }
-  
-  # Estimate between-year variance (Bühlmann-Straub)
-  SS_between <- sum(w * (Lambda_CL - mu_pool)^2)
-  w_total <- sum(w)
-  w_factor <- w_total - sum(w^2) / w_total
-  tau_sq_hat <- max((SS_between - (I - 1) * sigma_sq) / w_factor, 0)
-  
-  # Compute credibility weights
-  if (tau_sq_hat > 0) {
-    k <- sigma_sq / tau_sq_hat
-    
-    if (!is.null(prior_mean) && !is.null(prior_var)) {
-      # Three-source credibility
-      prec_ind <- w / sigma_sq
-      prec_pool <- 1 / tau_sq_hat
-      prec_prior <- 1 / prior_var
-      prec_total <- prec_ind + prec_pool + prec_prior
-      
-      Z1 <- prec_ind / prec_total
-      Z2 <- prec_pool / prec_total
-      Z0 <- prec_prior / prec_total
-      
-      Lambda_UCR <- Z1 * Lambda_CL + Z2 * mu_pool + Z0 * prior_mean
+    if (dispersion == "odp") {
+      phi_hat <- tryCatch({
+        incr <- cbind(triangle[, 1], t(apply(triangle, 1, diff)))
+        idx  <- which(!is.na(triangle), arr.ind = TRUE)
+        dd   <- data.frame(y = incr[idx], ay = factor(idx[, 1]), dev = factor(idx[, 2]))
+        dd   <- dd[is.finite(dd$y) & dd$y > 0, , drop = FALSE]
+        dd$ay <- droplevels(dd$ay); dd$dev <- droplevels(dd$dev)
+        if (nrow(dd) >= (nlevels(dd$ay) + nlevels(dd$dev))) {
+          g <- suppressWarnings(glm(y ~ ay + dev, data = dd, family = quasipoisson(link = "log")))
+          p <- summary(g)$dispersion
+          if (is.finite(p) && p > 0) p else NA_real_
+        } else NA_real_
+      }, error = function(e) NA_real_)
+      if (is.finite(phi_hat)) sigma_sq <- phi_hat * mu_pool
+      else { sigma_sq <- mu_pool; dispersion <- "poisson (odp unavailable)" }
     } else {
-      # Two-source credibility
-      Z1 <- w / (w + k)
-      Z2 <- 1 - Z1
-      Z0 <- rep(0, I)
-      
-      Lambda_UCR <- Z1 * Lambda_CL + Z2 * mu_pool
+      sigma_sq <- mu_pool
+    }
+  }
+
+  # ---- Between-year variance tau^2 ----
+  mml_reverted <- FALSE; mu_mml <- NA_real_
+  bs_tau2 <- function(s2) {
+    SSb <- sum(w * (Lambda_CL - mu_pool)^2)
+    wt  <- sum(w); wf <- wt - sum(w^2) / wt
+    max((SSb - (I - 1) * s2) / wf, 0)
+  }
+  if (method == "mml") {
+    mml <- tryCatch(mml_estimator(C_obs, w), error = function(e) NULL)
+    if (is.null(mml) || !is.finite(mml$tau2) ||
+        mml$theta > mml_theta_cap || mml$tau2 < .Machine$double.eps) {
+      mml_reverted <- TRUE; method_used <- "bs (mml reverted)"
+      tau_sq_hat <- bs_tau2(sigma_sq); mu_target <- mu_pool; sigma_eff <- sigma_sq
+    } else {
+      method_used <- "mml"; mu_mml <- mml$mu
+      tau_sq_hat <- mml$tau2; mu_target <- mu_mml; sigma_eff <- mu_mml
     }
   } else {
-    # tau^2 = 0: full pooling (Cape Cod)
-    Z1 <- rep(0, I)
-    Z2 <- rep(1, I)
-    Z0 <- rep(0, I)
-    k <- Inf
-    
-    Lambda_UCR <- rep(mu_pool, I)
+    method_used <- "bs"
+    tau_sq_hat <- bs_tau2(sigma_sq); mu_target <- mu_pool; sigma_eff <- sigma_sq
   }
-  
+
+  # ---- Credibility weights ----
+  if (tau_sq_hat > 0) {
+    k <- sigma_eff / tau_sq_hat
+    if (!is.null(prior_mean) && !is.null(prior_var)) {
+      prec_ind <- w / sigma_eff; prec_pool <- 1 / tau_sq_hat; prec_prior <- 1 / prior_var
+      prec_total <- prec_ind + prec_pool + prec_prior
+      Z1 <- prec_ind / prec_total; Z2 <- prec_pool / prec_total; Z0 <- prec_prior / prec_total
+      Lambda_UCR <- Z1 * Lambda_CL + Z2 * mu_target + Z0 * prior_mean
+    } else {
+      Z1 <- w / (w + k); Z2 <- 1 - Z1; Z0 <- rep(0, I)
+      Lambda_UCR <- Z1 * Lambda_CL + Z2 * mu_target
+    }
+  } else {
+    Z1 <- rep(0, I); Z2 <- rep(1, I); Z0 <- rep(0, I); k <- Inf
+    Lambda_UCR <- rep(mu_target, I)
+  }
+
   ultimate <- Lambda_UCR * exposure
-  reserve <- ultimate - C_obs
-  
+  reserve  <- ultimate - C_obs
+
   result <- list(
-    ultimate = ultimate,
-    reserve = reserve,
-    total_reserve = sum(reserve),
-    Lambda_CL = Lambda_CL,
-    Lambda_UCR = Lambda_UCR,
-    mu_pool = mu_pool,
-    sigma_sq = sigma_sq,
-    tau_sq_hat = tau_sq_hat,
-    k = k,
-    Z1 = Z1,
-    Z2 = Z2,
-    Z0 = Z0,
-    C_obs = C_obs,
-    j_obs = j_obs,
-    F_obs = F_obs,
-    F_cum = F_cum,
-    w = w,
-    exposure = exposure,
-    triangle = triangle,
-    prior_mean = prior_mean,
-    prior_var = prior_var,
-    method = "UCR"
+    ultimate = ultimate, reserve = reserve, total_reserve = sum(reserve),
+    Lambda_CL = Lambda_CL, Lambda_UCR = Lambda_UCR, mu_pool = mu_pool,
+    sigma_sq = sigma_eff, tau_sq_hat = tau_sq_hat, k = k,
+    Z1 = Z1, Z2 = Z2, Z0 = Z0,
+    C_obs = C_obs, j_obs = j_obs, F_obs = F_obs, F_cum = F_cum, w = w,
+    exposure = exposure, triangle = triangle,
+    prior_mean = prior_mean, prior_var = prior_var,
+    estimator = method_used, dispersion = dispersion, phi_hat = phi_hat,
+    mu_mml = mu_mml, mml_reverted = mml_reverted, method = "UCR"
   )
-  
   class(result) <- c("ucr", "reserve_estimate")
   return(result)
 }
-
 # =============================================================================
 # PART 5: COMPARISON AND DIAGNOSTICS
 # =============================================================================
@@ -900,7 +872,7 @@ simulate_triangle <- function(I, J, exposure = 1000, mu = 0.1, tau_sq = 0.01,
 #' @return A data frame with simulation results
 #' @export
 run_ucr_simulation <- function(n_reps = 500, 
-                                tau_sq_grid = c(0, 0.0001, 0.0005, 0.001, 0.005, 0.01),
+                                tau_sq_grid = c(0, 1e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 2e-2),
                                 I = 10, J = 10, mu = 0.1, exposure = 1000,
                                 pi = NULL, verbose = TRUE) {
   
