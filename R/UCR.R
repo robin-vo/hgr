@@ -500,6 +500,47 @@ three_source_credibility <- function(x, w, mu_pool, mu_prior,
   )
 }
 
+#' Unified Credibility Reserving (UCR)
+#'
+#' UCR is a general credibility-based reserving method that nests Chain-Ladder,
+#' Cape Cod, and Bornhuetter-Ferguson as special cases. It adaptively estimates
+#' credibility weights from the data, using either the Bühlmann-Straub moment
+#' estimator or the marginal maximum likelihood (MML) estimator of the
+#' between-year variance.
+#'
+#' @param triangle A matrix representing the run-off triangle (cumulative claims)
+#' @param exposure Vector of exposures (default: first period claims)
+#' @param F_cum Optional vector of cumulative development proportions
+#' @param prior_mean Optional external prior mean (mu_0)
+#' @param prior_var Optional external prior variance (tau_0^2)
+#' @param sigma_sq Optional process variance. If supplied, overrides \code{dispersion}.
+#' @param method Estimator for the between-year variance tau^2:
+#'   \code{"bs"} (Bühlmann-Straub moment estimator, default) or
+#'   \code{"mml"} (marginal maximum likelihood via the Negative Binomial marginal).
+#' @param dispersion Process-variance convention when \code{sigma_sq} is not supplied:
+#'   \code{"poisson"} sets sigma^2 = mu_pool (default, appropriate for count data);
+#'   \code{"odp"} sets sigma^2 = phi_hat * mu_pool, with phi_hat the dispersion
+#'   from a quasi-Poisson GLM (\code{y ~ ay + dev}) fitted to the incremental
+#'   cells, appropriate for over-dispersed amount data (see paper, Sec. 4.8).
+#' @param mml_theta_cap Safeguard threshold for the MML estimator. When
+#'   \code{method = "mml"}, a fitted Negative Binomial size above this value
+#'   is treated as a dispersion collapse (tau^2 -> 0, spurious full pooling)
+#'   and the estimator reverts to Buhlmann-Straub. The default (1e4) lies in
+#'   the empty region between well-behaved fits (theta near mu^2/tau^2, of
+#'   order 1 on the simulation grid) and collapsed fits (theta > 1e10);
+#'   on a tau^2 = 0.02 design the two regimes are separated by roughly ten
+#'   orders of magnitude, so the cap is insensitive to its exact value over
+#'   [1e2, 1e9]. See Sec. 4.6.
+#' @return An object of class "ucr" with reserve estimates and diagnostics.
+#'   In addition to the reserve and credibility components (\code{reserve},
+#'   \code{total_reserve}, \code{Lambda_CL}, \code{Lambda_UCR}, \code{Z1},
+#'   \code{tau_sq_hat}, \code{k}), the object records which estimator was used
+#'   (\code{estimator}), the dispersion convention (\code{dispersion}), the
+#'   fitted Pearson dispersion when \code{dispersion = "odp"} (\code{phi_hat}),
+#'   the MML mean when \code{method = "mml"} (\code{mu_mml}), and a flag
+#'   indicating whether the MML safeguard reverted to Buhlmann-Straub
+#'   (\code{mml_reverted}).
+#' @export
 ucr <- function(triangle, exposure = NULL, F_cum = NULL,
                 prior_mean = NULL, prior_var = NULL, sigma_sq = NULL,
                 method = c("bs", "mml"),
