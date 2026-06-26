@@ -32,7 +32,7 @@ Unified Credibility Reserving (UCR) provides a data-adaptive framework that nest
 - **Unification**: Proves Chain-Ladder, Cape Cod, Bornhuetter-Ferguson, and Mack are all credibility estimators under a single Poisson-Gamma-Multinomial model
 - **Adaptive weights**: Estimates between-year heterogeneity τ² from data via Bühlmann-Straub, automatically selecting the appropriate blend of individual vs pooled information
 - **Method selection**: When τ² is large → UCR ≈ Chain-Ladder; when τ² ≈ 0 → UCR ≈ Cape Cod; with external prior → UCR generalises Bornhuetter-Ferguson
-- **Efficiency gains**: Simulation study shows up to 21% MSE reduction vs Chain-Ladder when rates are homogeneous, while matching Chain-Ladder when heterogeneity is high
+- **Efficiency gains**: Simulation matches Chain-Ladder on the median across the heterogeneity range while reducing its tail risk; the mean-MSE reduction reaches ~38% at exact homogeneity, where UCR leans toward Cape Cod
 - **Diagnostics**: Credibility weights Z and estimated τ² provide interpretable diagnostics for method appropriateness
 
 ## Installation
