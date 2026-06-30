@@ -1,6 +1,6 @@
 Package: hgr
 Title: The hidden grammar of reserving
-Version: 0.3.0
+Version: 0.4.0
 Authors@R: 
     person("Robin", "Van Oirbeek", , "robin.vanoirbeek@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = ""))
@@ -8,14 +8,19 @@ Description: Implements a unified framework for macro-level reserving in non-lif
     based on the insight that classical reserving methods are credibility estimators.
     Includes the Negative Binomial Chain-Ladder (NB-CL) model, Unified Credibility
     Reserving (UCR), Mack's distribution-free model, classical Bühlmann-Straub
-    credibility theory, and model-agnostic predictive intervals via the
-    Dirichlet-Multinomial parametric bootstrap. UCR nests Chain-Ladder,
-    Bornhuetter-Ferguson, and Cape Cod as special cases with data-adaptive
-    credibility weights. The multinomial bootstrap provides predictive intervals
-    for any reserving method producing development proportions, governed by a
-    single Dirichlet concentration parameter c that doubles as a diagnostic for
-    model adequacy. Provides functions for model fitting, prediction, variance
-    estimation, parametric bootstrap, diagnostics, and model comparison.
+    credibility theory, model-agnostic predictive intervals via the
+    Dirichlet-Multinomial parametric bootstrap, and the Compound Negative
+    Binomial-Gamma (CNBG) amount-triangle model with its information-ceiling
+    diagnostics. UCR nests Chain-Ladder, Bornhuetter-Ferguson, and Cape Cod as
+    special cases with data-adaptive credibility weights. The multinomial
+    bootstrap provides predictive intervals for any reserving method producing
+    development proportions, governed by a single Dirichlet concentration
+    parameter c that doubles as a diagnostic for model adequacy. The CNBG model
+    characterises what a paid-loss triangle can and cannot identify about
+    reserve uncertainty, with a kappa posterior diagnostic that flags when
+    amount-only inference is unsupported. Provides functions for model fitting,
+    prediction, variance estimation, parametric bootstrap, diagnostics, and
+    model comparison.
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -27,6 +32,7 @@ Imports:
 Suggests:
     ChainLadder,
     MCMCpack,
+    rstan (>= 2.26.0),
     testthat (>= 3.0.0),
     ggplot2
 Config/testthat/edition: 3
