@@ -1,6 +1,6 @@
 # hgr
 
-An R package implementing methods for the hidden grammar of reserving models in non-life insurance, currently including: 
+An R package implementing methods for the hidden grammar of reserving models in non-life insurance, currently including:
 
 - the Negative Binomial Chain-Ladder (NB-CL) model
 - a Unified Credibility Reserving (UCR) framework based on the insight that **classical reserving methods are credibility estimators**
@@ -25,6 +25,7 @@ The NB-CL model provides a full likelihood framework for claim count triangles, 
 - **Overdispersion**: Models variance through dispersion parameter κ with structural interpretation
 - **Bias correction**: REML-like correction for finite-sample bias in κ estimation
 - **Prediction intervals**: Parametric bootstrap incorporating both process and parameter uncertainty
+- **Robust long runs**: Each bootstrap refit is wrapped in a hard per-fit timeout (a degenerate resample can never hang the run; timeouts are recorded as failures and reported via `n_failed`), and optional incremental checkpointing with atomic write-then-rename lets an interrupted run resume where it left off
 
 ## UCR
 
@@ -54,8 +55,7 @@ The model is appropriate for paid (claim-emergence) triangles only, not cell-lev
 devtools::install_github("robin-vo/hgr")
 ```
 
-The exact CNBG engine `fit_cnbg_exact()` additionally requires `rstan`
-(in Suggests); the working-likelihood default `fit_cnbg()` does not.
+The exact CNBG engine `fit_cnbg_exact()` additionally requires `rstan` (in Suggests); the working-likelihood default `fit_cnbg()` does not.
 
 ```r
 install.packages("rstan")   # only for fit_cnbg_exact()
@@ -121,8 +121,16 @@ reserve_nbcl(fit)
 pred <- predict_nbcl(fit)
 head(pred)
 
-# Parametric bootstrap for full predictive distribution
+# Parametric bootstrap for full predictive distribution.
+# Each refit runs under a hard per-fit timeout (default 30 s); timed-out or
+# failed refits are dropped and counted in boot$n_failed.
 boot <- bootstrap_nbcl(fit, B = 5000, correct_kappa = TRUE)
+
+# Long runs: checkpoint incrementally and resume after an interruption.
+# Re-invoking the same call picks up from the last checkpoint.
+boot <- bootstrap_nbcl(fit, B = 5000, correct_kappa = TRUE,
+                       checkpoint_file = "nbcl_boot_ckpt.rds",
+                       checkpoint_every = 500)
 
 # Prediction interval for the total reserve
 predict_interval(boot, level = 0.95)
@@ -139,7 +147,6 @@ plot_diagnostics(fit, which = 1:4)
 # Profile likelihood for kappa (standalone)
 prof <- profile_kappa(fit)
 plot(prof)
-
 ```
 
 ## Quick Start — UCR
@@ -226,45 +233,45 @@ cnbg_information_kappa(kappa_grid = c(3, 10, 50), alpha = 3)
 
 ### Multinomial Bootstrap
 
-| Function | Description |
-|----------|-------------|
-| `multinomial_bootstrap()` | Model-agnostic predictive intervals |
+| Function                     | Description                          |
+| ---------------------------- | ------------------------------------ |
+| `multinomial_bootstrap()`    | Model-agnostic predictive intervals  |
 | `estimate_dev_proportions()` | Chain-Ladder development proportions |
-| `estimate_c()` | Dirichlet concentration parameter |
-| `diagnose_c()` | Concentration diagnostic (c < 30?) |
-| `delta_method_var()` | Fast closed-form variance |
-| `bayesian_bootstrap()` | Bayesian extension with MCMC |
+| `estimate_c()`               | Dirichlet concentration parameter    |
+| `diagnose_c()`               | Concentration diagnostic (c < 30?)   |
+| `delta_method_var()`         | Fast closed-form variance            |
+| `bayesian_bootstrap()`       | Bayesian extension with MCMC         |
 
 ### Reserving Methods
 
-| Function | Description |
-|----------|-------------|
-| `ucr()` | Unified Credibility Reserving |
-| `chain_ladder()` | Chain-Ladder method |
-| `cape_cod()` | Cape Cod method |
-| `bornhuetter_ferguson()` | Bornhuetter-Ferguson method |
-| `fit_mack()` | Mack's distribution-free model |
-| `compare_reserves()` | Compare all methods |
+| Function                 | Description                    |
+| ------------------------ | ------------------------------ |
+| `ucr()`                  | Unified Credibility Reserving  |
+| `chain_ladder()`         | Chain-Ladder method            |
+| `cape_cod()`             | Cape Cod method                |
+| `bornhuetter_ferguson()` | Bornhuetter-Ferguson method    |
+| `fit_mack()`             | Mack's distribution-free model |
+| `compare_reserves()`     | Compare all methods            |
 
 ### NB-CL Model
 
-| Function | Description |
-|----------|-------------|
-| `fit_nbcl()` | Fit Negative Binomial Chain-Ladder |
-| `bootstrap_nbcl()` | Parametric bootstrap with bias correction |
-| `profile_kappa()` | Profile likelihood for dispersion |
+| Function           | Description                                                               |
+| ------------------ | ------------------------------------------------------------------------- |
+| `fit_nbcl()`       | Fit Negative Binomial Chain-Ladder                                        |
+| `bootstrap_nbcl()` | Parametric bootstrap with bias correction, per-fit timeout, checkpointing |
+| `profile_kappa()`  | Profile likelihood for dispersion                                         |
 
 ### CNBG Model
 
-| Function | Description |
-|----------|-------------|
-| `simulate_cnbg()` | Simulate a CNBG paid-loss triangle |
-| `fit_cnbg()` | Fit CNBG (working-likelihood `"bayes"` or `"wls"` point estimate) |
-| `fit_cnbg_exact()` | Exact frailty-augmented HMC posterior (requires `rstan`) |
-| `diagnose_kappa()` | Kappa posterior diagnostic and regime classification |
-| `reserve_cnbg()` | Conditioning-respecting posterior predictive reserve |
-| `bootstrap_cnbg_cond()` | Point-estimate (WLS-cond) predictive bootstrap |
-| `cnbg_information_kappa()` | Fisher / Godambe / van Trees bound on kappa |
+| Function                   | Description                                                       |
+| -------------------------- | ----------------------------------------------------------------- |
+| `simulate_cnbg()`          | Simulate a CNBG paid-loss triangle                                |
+| `fit_cnbg()`               | Fit CNBG (working-likelihood `"bayes"` or `"wls"` point estimate) |
+| `fit_cnbg_exact()`         | Exact frailty-augmented HMC posterior (requires `rstan`)          |
+| `diagnose_kappa()`         | Kappa posterior diagnostic and regime classification              |
+| `reserve_cnbg()`           | Conditioning-respecting posterior predictive reserve              |
+| `bootstrap_cnbg_cond()`    | Point-estimate (WLS-cond) predictive bootstrap                    |
+| `cnbg_information_kappa()` | Fisher / Godambe / van Trees bound on kappa                       |
 
 ## References
 
