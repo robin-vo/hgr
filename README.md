@@ -5,7 +5,7 @@ An R package implementing methods for the hidden grammar of reserving models in 
 - the Negative Binomial Chain-Ladder (NB-CL) model
 - a Unified Credibility Reserving (UCR) framework based on the insight that **classical reserving methods are credibility estimators**
 - **model-agnostic predictive intervals** via Dirichlet-Multinomial allocation
-- the Compound Negative Binomial-Gamma (CNBG) **amount-triangle** model, with an **information-ceiling diagnostic** for when paid amounts alone can be trusted
+- the Compound Negative Binomial-Gamma (CNBG) **amount-triangle** model, with an **identification-boundary diagnostic** for when paid amounts alone can be trusted
 
 ## Multinomial Parametric Bootstrap
 
@@ -25,7 +25,6 @@ The NB-CL model provides a full likelihood framework for claim count triangles, 
 - **Overdispersion**: Models variance through dispersion parameter κ with structural interpretation
 - **Bias correction**: REML-like correction for finite-sample bias in κ estimation
 - **Prediction intervals**: Parametric bootstrap incorporating both process and parameter uncertainty
-- **Robust long runs**: Each bootstrap refit is wrapped in a hard per-fit timeout (a degenerate resample can never hang the run; timeouts are recorded as failures and reported via `n_failed`), and optional incremental checkpointing with atomic write-then-rename lets an interrupted run resume where it left off
 
 ## UCR
 
@@ -39,13 +38,13 @@ Unified Credibility Reserving (UCR) provides a data-adaptive framework that nest
 
 ## CNBG
 
-The Compound Negative Binomial-Gamma (CNBG) model is the principled distributional model for **incremental paid-loss** triangles, derived from the micro-level claim process. Its variance function `Var(X) = A·nu + nu^2/kappa` decomposes amount variability into a severity component (`A·nu`) and a frailty-heterogeneity component (`nu^2/kappa`) — the quadratic term that the ODP and Tweedie bootstraps omit, which is the structural cause of their documented undercoverage.
+The Compound Negative Binomial-Gamma (CNBG) model is the principled distributional model for **incremental paid-loss** triangles, derived from the micro-level claim process. Its variance function `Var(X) = A·nu + nu^2/kappa` decomposes amount variability into a severity component (`A·nu`) and a frailty-heterogeneity component (`nu^2/kappa`) — the quadratic term that the ODP and Tweedie bootstraps omit, which is the variance-side structural cause of their documented undercoverage.
 
 - **Correct variance function**: Supplies the missing quadratic term by construction, unlike ODP (linear) and Tweedie (power-law)
-- **Conditioning-respecting predictive**: The posterior predictive holds the observed triangle fixed and restores the per-row frailty by a conjugate update, rather than refitting on bootstrap pseudo-triangles
-- **Information ceiling**: The row frailty `kappa_r` that dominates reserve uncertainty is **absorbed** by the free row levels and is not identified from paid amounts alone (a parameterisation fact, not a finite-sample limit); the predictive integrates it over the prior. `cnbg_information_kappa()` reproduces the Fisher/Godambe/van Trees bounds
-- **Trust diagnostic, not a method chooser**: `diagnose_kappa()` classifies a portfolio as informative-engagement, prior-driven, misspecification-flight, or no-Bayes. The verdict — whether to trust amount-only inference at all — matters more than the choice among amount-only procedures. When it flags flight or no-Bayes, escalate to the count triangle (NB-CL) or the joint frequency-severity model
-- **Two engines**: a fast deterministic working-likelihood posterior (the recommended default) and an exact frailty-augmented HMC posterior (`fit_cnbg_exact()`, a theoretical reference, fragile on 10×10 triangles and requiring `rstan`)
+- **Conditioning-respecting predictive**: The posterior predictive holds the observed triangle fixed and restores the per-row frailty by a conjugate update, rather than refitting on bootstrap pseudo-triangles; future cells are drawn from the exact conditional compound Poisson-Gamma, including its zero atom
+- **Identification boundary**: The row frailty `kappa_r` that dominates reserve uncertainty is **absorbed** by the free row levels and is not identified from paid amounts alone (a parameterisation fact, not a finite-sample limit); the predictive integrates it over the prior. What remains is subject to a genuine information ceiling: `cnbg_information_kappa()` reproduces the paper's published Fisher / Godambe / van Trees table exactly at the package defaults, which are the paper's simulation calibration
+- **Trust diagnostic, not a method chooser**: `diagnose_kappa()` returns both the paper's regime classification (`informative` — which includes prior-driven portfolios — `incipient_flight`, `strong_flight`, `no_bayes`) and its four-level KL tier (`prior-driven`, `weak`, `moderate`, `strong`), whose coverage gradient is the paper's validated instrument. The verdict — whether to trust amount-only inference at all — matters more than the choice among amount-only procedures. When it flags flight, escalate to the count triangle (NB-CL) or the joint frequency-severity model
+- **Three engines**: `fit_cnbg(engine = "paper")` (the default) is a deterministic joint `(kappa, A)` grid quadrature of the paper's working-likelihood posterior — the estimator behind the paper's published fits, no Stan needed; `engine = "adjusted"` is a deliberately deflated variant applying the cluster-robust Godambe magnitude adjustment (Ribatet et al., 2012) that the paper discusses but does not use; and `fit_cnbg_exact()` is the exact frailty-augmented HMC posterior (requires `rstan`), which converges cleanly on individual 10×10 triangles at minutes per fit against seconds for the working likelihood — a per-portfolio theoretical reference, priced out of population-scale use by runtime
 
 The model is appropriate for paid (claim-emergence) triangles only, not cell-level incurred-loss triangles, which mix payments with case-reserve and IBNR revisions.
 
@@ -106,10 +105,10 @@ delta_method_var(incr)
 library(hgr)
 library(ChainLadder)
 
-# Convert cumulative triangle to incremental (NB‑CL works on incremental data)
+# Convert cumulative triangle to incremental (NB-CL works on incremental data)
 incr <- cum2incr(GenIns)
 
-# Fit Negative Binomial Chain‑Ladder
+# Fit Negative Binomial Chain-Ladder
 fit <- fit_nbcl(incr)
 print(fit)          # model summary, kappa correction, AIC/BIC
 summary(fit)        # coefficients and diagnostics
@@ -117,25 +116,17 @@ summary(fit)        # coefficients and diagnostics
 # Deterministic reserve estimate (mean prediction)
 reserve_nbcl(fit)
 
-# Predict lower‑triangle means
+# Predict lower-triangle means
 pred <- predict_nbcl(fit)
 head(pred)
 
-# Parametric bootstrap for full predictive distribution.
-# Each refit runs under a hard per-fit timeout (default 30 s); timed-out or
-# failed refits are dropped and counted in boot$n_failed.
+# Parametric bootstrap for full predictive distribution
 boot <- bootstrap_nbcl(fit, B = 5000, correct_kappa = TRUE)
-
-# Long runs: checkpoint incrementally and resume after an interruption.
-# Re-invoking the same call picks up from the last checkpoint.
-boot <- bootstrap_nbcl(fit, B = 5000, correct_kappa = TRUE,
-                       checkpoint_file = "nbcl_boot_ckpt.rds",
-                       checkpoint_every = 500)
 
 # Prediction interval for the total reserve
 predict_interval(boot, level = 0.95)
 
-# Distribution of accident‑year reserves
+# Distribution of accident-year reserves
 boot$reserves_by_ay[1:5, ]
 
 # Inspect bootstrap dispersion estimates
@@ -183,16 +174,16 @@ comparison <- compare_reserves(triangle, exposure = exposure)
 print(comparison)
 
 # 5. Extract credibility weights directly
-ucr_fit$Z1        # accident‑year credibility
+ucr_fit$Z1        # accident-year credibility
 ucr_fit$Lambda_CL # individual CL rates
-ucr_fit$Lambda_UCR# credibility‑adjusted rates
+ucr_fit$Lambda_UCR# credibility-adjusted rates
 
 # 6. Access variance components
 ucr_fit$sigma_sq   # process variance
-ucr_fit$tau_sq_hat # between‑year variance
+ucr_fit$tau_sq_hat # between-year variance
 ucr_fit$k          # sigma^2 / tau^2
 
-# 7. Mack comparison (distribution‑free benchmark)
+# 7. Mack comparison (distribution-free benchmark)
 mack_fit <- fit_mack(triangle)
 print(mack_fit)
 ```
@@ -203,27 +194,36 @@ print(mack_fit)
 library(hgr)
 
 # Simulate an incremental paid-loss triangle from the CNBG model
+# (defaults are the paper's simulation calibration: Y_bar = 5000,
+#  mu_i = 30 e^{0.05(i-1)}, explicit decreasing development weights)
 tri <- simulate_cnbg(I = 10, J = 10, kappa = 5, alpha = 3)$triangle
 
-# 1. Fit the working-likelihood posterior (recommended default; no Stan needed)
+# 1. Fit the working-likelihood posterior (recommended default; no Stan
+#    needed). engine = "paper" (default) is the joint (kappa, A) grid
+#    quadrature of the paper's posterior; engine = "adjusted" is the
+#    deliberately deflated Godambe-adjusted variant.
 fit <- fit_cnbg(tri, method = "bayes", prior = "ref")
 print(fit)
 
 # 2. Trust diagnostic: is amount-only inference supported on this portfolio?
-#    regimes: informative | prior_driven | flight | no_bayes
+#    regime:  informative (includes prior-driven) | incipient_flight |
+#             strong_flight | no_bayes
+#    kl_tier: prior-driven | weak | moderate | strong
 diagnose_kappa(fit)
 
 # 3. Conditioning-respecting posterior predictive reserve
+#    (exact conditional compound Poisson-Gamma cell draws, zero atom included)
 reserve_cnbg(fit)
 
 # 4. Point-estimate (WLS) counterpart — the lower edge of the design space
 bootstrap_cnbg_cond(tri)
 
-# 5. Information ceiling: Fisher / Godambe / van Trees bounds on kappa
+# 5. Information bound: at the package defaults this reproduces the
+#    paper's published van Trees table (average G over alpha in c(1, 3, 10))
 cnbg_information_kappa(kappa_grid = c(3, 10, 50), alpha = 3)
 
-# 6. Exact frailty-augmented posterior (theoretical reference; requires rstan,
-#    fragile on 10x10 triangles)
+# 6. Exact frailty-augmented posterior (per-portfolio theoretical
+#    reference; requires rstan; minutes per fit vs seconds for fit_cnbg)
 ## fit_x <- fit_cnbg_exact(tri, prior = "ref", alpha = 3)
 ## reserve_cnbg(fit_x)
 ## diagnose_kappa(fit_x)
@@ -255,29 +255,29 @@ cnbg_information_kappa(kappa_grid = c(3, 10, 50), alpha = 3)
 
 ### NB-CL Model
 
-| Function           | Description                                                               |
-| ------------------ | ------------------------------------------------------------------------- |
-| `fit_nbcl()`       | Fit Negative Binomial Chain-Ladder                                        |
-| `bootstrap_nbcl()` | Parametric bootstrap with bias correction, per-fit timeout, checkpointing |
-| `profile_kappa()`  | Profile likelihood for dispersion                                         |
+| Function           | Description                               |
+| ------------------ | ----------------------------------------- |
+| `fit_nbcl()`       | Fit Negative Binomial Chain-Ladder        |
+| `bootstrap_nbcl()` | Parametric bootstrap with bias correction |
+| `profile_kappa()`  | Profile likelihood for dispersion         |
 
 ### CNBG Model
 
-| Function                   | Description                                                       |
-| -------------------------- | ----------------------------------------------------------------- |
-| `simulate_cnbg()`          | Simulate a CNBG paid-loss triangle                                |
-| `fit_cnbg()`               | Fit CNBG (working-likelihood `"bayes"` or `"wls"` point estimate) |
-| `fit_cnbg_exact()`         | Exact frailty-augmented HMC posterior (requires `rstan`)          |
-| `diagnose_kappa()`         | Kappa posterior diagnostic and regime classification              |
-| `reserve_cnbg()`           | Conditioning-respecting posterior predictive reserve              |
-| `bootstrap_cnbg_cond()`    | Point-estimate (WLS-cond) predictive bootstrap                    |
-| `cnbg_information_kappa()` | Fisher / Godambe / van Trees bound on kappa                       |
+| Function                   | Description                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| `simulate_cnbg()`          | Simulate a CNBG paid-loss triangle (paper calibration by default)               |
+| `fit_cnbg()`               | Fit CNBG: `engine = "paper"` (joint grid, default) or `"adjusted"`; or `"wls"`  |
+| `fit_cnbg_exact()`         | Exact frailty-augmented HMC posterior (requires `rstan`)                        |
+| `diagnose_kappa()`         | Kappa posterior diagnostic: regime and KL tier                                  |
+| `reserve_cnbg()`           | Conditioning-respecting posterior predictive reserve                            |
+| `bootstrap_cnbg_cond()`    | Point-estimate (WLS-cond) predictive bootstrap                                  |
+| `cnbg_information_kappa()` | Fisher / Godambe / van Trees bound on kappa (reproduces the paper's table)      |
 
 ## References
 
-Van Oirbeek, R. and Verdonck, T. (2026). Model-Agnostic Predictive Intervals for Claims Reserving via Dirichlet-Multinomial Allocation. *Working Paper*.
+Van Oirbeek, R. and Verdonck, T. (2026). Model-Agnostic Predictive Intervals for Claims Reserving via Dirichlet-Multinomial Allocation. *arXiv:2605.15896v2*.
 
-Van Oirbeek, R. (2026). The Negative Binomial Chain-Ladder: A Full Likelihood Model for Claim Count Reserving. *Working Paper*.
+Van Oirbeek, R. (2026). The Negative Binomial Chain-Ladder: A Full Likelihood Model for Claim Count Reserving. *arXiv:2605.15811v3*.
 
 Van Oirbeek, R. (2026). Classical Reserving Methods as Credibility Estimators: A Unified Bayesian Framework. *Working Paper*.
 
