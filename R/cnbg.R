@@ -793,7 +793,7 @@ data {
   vector<lower=0>[N] x;
   vector<lower=0>[N] nu;
   int<lower=1> I;
-  int<lower=1, upper=I> row[N];
+  array[N] int<lower=1, upper=I> row;
   real<lower=0> alpha;
   int<lower=1> n_max;
   real<lower=0> prior_shape;
@@ -836,8 +836,9 @@ generated quantities {
   real Ybar_out = Ybar;
 }
 '
-## NOTE: pre-2.26 array syntax `int row[N]`. On rstan >= 2.26 change to
-## `array[N] int<lower=1,upper=I> row;` (here and in inst/stan/cnbg_exact.stan).
+## NOTE: uses the Stan >= 2.26 array syntax `array[N] int`, matching the
+## DESCRIPTION pin rstan (>= 2.26.0). Keep inst/stan/cnbg_exact.stan on the
+## same syntax.
 
 .cnbg_stan_env <- new.env(parent = emptyenv())
 
