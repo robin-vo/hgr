@@ -4,18 +4,19 @@ An R package implementing methods for the hidden grammar of reserving models in 
 
 - the Negative Binomial Chain-Ladder (NB-CL) model
 - a Unified Credibility Reserving (UCR) framework based on the insight that **classical reserving methods are credibility estimators**
-- **model-agnostic predictive intervals** via Dirichlet-Multinomial allocation
+- **model-agnostic conditional predictive intervals** via Dirichlet-Multinomial allocation, with a portfolio-specific operability bound for when the framework can report at all
 - the Compound Negative Binomial-Gamma (CNBG) **amount-triangle** model, with an **identification-boundary diagnostic** for when paid amounts alone can be trusted
 
 ## Multinomial Parametric Bootstrap
 
-The multinomial bootstrap provides predictive intervals for **any** reserving method producing development proportions — not just Chain-Ladder:
+Conditional predictive intervals for claims reserving. The observed triangle is held fixed and only the allocation proportion is simulated, so the interval answers "how uncertain is the reserve on **this** triangle" rather than "how would the estimator vary across triangles I did not observe".
 
-- **Method-agnostic**: Supply development proportions from Chain-Ladder, Bornhuetter-Ferguson, Cape Cod, GLMs, or expert judgment — the framework adds uncertainty quantification
-- **Single parameter**: The Dirichlet concentration `c` governs all development variability, estimated automatically from the triangle via partial-column moments
-- **Built-in diagnostic**: `c_hat < 30` signals accident-year heterogeneity requiring richer models; `c_hat >= 30` confirms stable development
-- **Joint count-amount**: The same framework handles both claim counts (Multinomial) and claim amounts (Dirichlet)
-- **No residual resampling**: Fully parametric bootstrap from Gamma-Dirichlet generative model
+- **Method-agnostic**: Supply cumulative development proportions from Chain-Ladder, Bornhuetter-Ferguson, Cape Cod, GLMs or expert judgment — the framework adds the uncertainty quantification. For BF and Cape Cod, analytic prediction errors exist in the literature but no conditional predictive bootstrap did
+- **One dispersion parameter**: Given the development pattern, allocation uncertainty is governed by a single Dirichlet concentration `c`, estimated from the triangle by a partial-column moment method
+- **Two diagnostics, not one threshold**: `diagnose_c()` reports the portfolio-specific operability bound `c†(τ) = τ/π₀` and, separately, the heterogeneity screen with its measured error rates. They answer different questions and a portfolio can pass one while failing the other
+- **Tiered moment reporting**: `(1-W)/W` is Beta-prime, whose k-th moment is finite only when `c·F > k`. The package enforces this and returns `NA` for the mean and standard error where they do not exist, rather than a number with no population counterpart
+- **Joint count-amount**: The same structure handles claim counts (Multinomial) and claim amounts (Dirichlet)
+- **No residual resampling**: Fully parametric, drawn from the Gamma-Dirichlet generative model
 
 ## NB-CL
 
@@ -66,26 +67,33 @@ install.packages("rstan")   # only for fit_cnbg_exact()
 library(hgr)
 library(ChainLadder)
 
-# Convert cumulative triangle to incremental
 incr <- cum2incr(GenIns)
 
-# 1. Check if Dirichlet model is appropriate
+# 1. Diagnostics FIRST: operability bound and heterogeneity screen.
+#    The bound is portfolio-specific; there is no universal threshold.
 diagnose_c(incr)
 
-# 2. Estimate development proportions (optional, shown for transparency)
+# 2. Development proportions (shown for transparency; estimated
+#    automatically by the bootstrap if not supplied)
 dev <- estimate_dev_proportions(incr)
 dev$pi_hat
 dev$F_hat
 
-# 3. Estimate concentration parameter directly
+# 3. Concentration parameter
 c_hat <- estimate_c(incr, pi_hat = dev$pi_hat)
 c_hat
 
-# 4. Predictive intervals (works with ANY development proportions)
+# 4. Conditional predictive intervals
 boot <- multinomial_bootstrap(incr, B = 10000)
 print(boot)
 
-# 5. Use with Bornhuetter-Ferguson or any custom proportions
+#    Per-accident-year detail, including the moment tier of each year.
+#    reserve_mean and reserve_se are NA where the moment does not exist.
+boot$by_origin
+
+# 5. Any development proportions: Bornhuetter-Ferguson, Cape Cod, a GLM,
+#    or expert judgment. Note that calibration under an informative anchor
+#    depends on the anchor being right (see "What this does not do").
 earned_premium <- c(10e6, 11e6, 12e6, 13e6, 14e6, 15e6, 16e6, 17e6, 18e6, 19e6)
 elr <- 0.65
 bf_ultimate <- earned_premium * elr
@@ -95,10 +103,17 @@ bf_pi <- bf_pi / sum(bf_pi)
 boot_bf <- multinomial_bootstrap(incr, pi_hat = bf_pi, B = 10000)
 print(boot_bf)
 
-# 6. Fast delta method (no bootstrap)
+# 6. Regularised version: integrates over the posterior of c rather than
+#    plugging it in. Use where diagnose_c()$operable is FALSE, or I < 10.
+#    Returns quantiles only -- no moments exist under the posterior mixture.
+reg <- bayesian_bootstrap(incr, B = 5000)
+reg$quantiles
+reg$c_posterior_mean
+
+# 7. Closed-form variance. Retained for speed; not recommended over the
+#    bootstrap at any c_hat.
 delta_method_var(incr)
 ```
-
 ## Quick Start — NB-CL
 
 ```r
@@ -231,16 +246,16 @@ cnbg_information_kappa(kappa_grid = c(3, 10, 50), alpha = 3)
 
 ## Key Functions
 
-### Multinomial Bootstrap
+### Multinomial Bootstrap### Multinomial Bootstrap
 
-| Function                     | Description                          |
-| ---------------------------- | ------------------------------------ |
-| `multinomial_bootstrap()`    | Model-agnostic predictive intervals  |
-| `estimate_dev_proportions()` | Chain-Ladder development proportions |
-| `estimate_c()`               | Dirichlet concentration parameter    |
-| `diagnose_c()`               | Concentration diagnostic (c < 30?)   |
-| `delta_method_var()`         | Fast closed-form variance            |
-| `bayesian_bootstrap()`       | Bayesian extension with MCMC         |
+| Function                     | Description                                              |
+| ---------------------------- | -------------------------------------------------------- |
+| `multinomial_bootstrap()`    | Conditional predictive intervals, tiered moment reporting |
+| `bayesian_bootstrap()`       | Regularised variant: `c` integrated over its posterior    |
+| `diagnose_c()`               | Operability bound `c†(τ)` and heterogeneity screen         |
+| `estimate_c()`               | Dirichlet concentration (subcomposition-corrected)        |
+| `estimate_dev_proportions()` | Chain-Ladder development proportions                      |
+| `delta_method_var()`         | Closed-form variance (not recommended over the bootstrap)  |
 
 ### Reserving Methods
 
@@ -275,7 +290,7 @@ cnbg_information_kappa(kappa_grid = c(3, 10, 50), alpha = 3)
 
 ## References
 
-Van Oirbeek, R. and Verdonck, T. (2026). Model-Agnostic Predictive Intervals for Claims Reserving via Dirichlet-Multinomial Allocation. *arXiv:2605.15896v2*.
+Van Oirbeek, R. and Verdonck, T. (2026). Why Residual Bootstraps Under-Cover: Conditional Prediction for Macro-Level Claims Reserving. *arXiv:2605.15896v3*.
 
 Van Oirbeek, R. (2026). The Negative Binomial Chain-Ladder: A Full Likelihood Model for Claim Count Reserving. *arXiv:2605.15811v3*.
 
