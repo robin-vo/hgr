@@ -3,7 +3,7 @@
 An R package implementing methods for the hidden grammar of reserving models in non-life insurance, currently including:
 
 - the Negative Binomial Chain-Ladder (NB-CL) model
-- **model-agnostic conditional predictive intervals** via Dirichlet-Multinomial allocation, with a portfolio-specific operability bound for when the framework can report at all
+- **anchor-agnostic conditional predictive intervals** via Dirichlet-Multinomial allocation, for Chain-Ladder, Bornhuetter-Ferguson, Cape Cod or any other development pattern, with a portfolio-specific operability bound for when the framework can report at all
 
 ## NB-CL
 
