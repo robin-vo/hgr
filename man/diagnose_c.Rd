@@ -2,20 +2,48 @@
 % Please edit documentation in R/multinomPI.R
 \name{diagnose_c}
 \alias{diagnose_c}
-\title{Concentration Parameter Diagnostic}
+\title{Concentration Diagnostics: Operability Bound and Heterogeneity Screen}
 \usage{
-diagnose_c(triangle, threshold = 30)
+diagnose_c(
+  triangle = NULL,
+  pi_hat = NULL,
+  c_hat = NULL,
+  tau = 5,
+  screen_t = 30
+)
 }
 \arguments{
-\item{triangle}{Numeric matrix. Incremental run-off triangle.}
+\item{triangle}{Incremental run-off triangle (or NULL if \code{pi_hat} and
+\code{c_hat} are supplied).}
 
-\item{threshold}{Scalar. Diagnostic threshold (default 30).}
+\item{pi_hat, c_hat}{Optionally supplied directly.}
+
+\item{tau}{Moment tier required (default 5, i.e. the c*F > 4 boundary with
+a margin).}
+
+\item{screen_t}{Heterogeneity screen threshold (default 30).}
 }
 \value{
-A list with: \code{c_hat}, \code{threshold}, \code{adequate}
-(logical), \code{message}.
+Object of class \code{c_diagnostic}.
 }
 \description{
-Estimates \eqn{c} and assesses whether the homogeneous development
-assumption is appropriate.
+Two distinct questions, with different answers.
+}
+\details{
+\strong{Operability.} The k-th predictive moment exists iff c*F_{I-i} > k,
+so the requirement on c is portfolio-specific: c >= c_dagger(tau) =
+tau / pi_0, with pi_0 the share of the ultimate reported in the first
+development year. On standard benchmarks c_dagger(5) is 44.6 for RAA, 72.2
+for Taylor-Ashe and 632.5 for Mortgage. A fixed threshold such as
+c_hat < 30 implicitly assumes pi_0 ~ 1/6 and is not used here.
+
+\strong{Heterogeneity.} Separately, a small c_hat indicates that allocation
+varies across accident years, favouring a model with explicit frailty. This
+is a screen and not a test: because c_hat is upward-biased at small I, a
+portfolio sitting exactly at the threshold is flagged with probability
+0.32-0.45 rather than 0.50, and at I = 7 the rule detects genuinely
+heterogeneous development on barely half of triangles.
+
+The two questions are independent: a portfolio can clear one and fail the
+other.
 }

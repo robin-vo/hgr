@@ -2,7 +2,7 @@
 % Please edit documentation in R/nbcl.R
 \name{triangle_to_long}
 \alias{triangle_to_long}
-\title{Negative Binomial Chain-Ladder Model}
+\title{Convert run-off triangle to long format}
 \usage{
 triangle_to_long(triangle)
 }
@@ -13,8 +13,5 @@ triangle_to_long(triangle)
 A data frame with columns AY, DY, A
 }
 \description{
-Functions for fitting and predicting with the NB-CL model
-}
-\author{
-Robin Van Oirbeek
+Convert run-off triangle to long format
 }

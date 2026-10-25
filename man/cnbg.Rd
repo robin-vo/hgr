@@ -5,18 +5,52 @@
 \title{Compound Negative Binomial-Gamma (CNBG) reserving}
 \description{
 Implementation of the amount-triangle methodology of "What Paid Triangles
-Can and Cannot Identify: An Information Ceiling for Loss-Reserve
-Uncertainty". Provides the CNBG data-generating process, two-stage
-estimation of the structural parameters (kappa, A), the
-conditioning-respecting posterior predictive reserve distribution, the
-kappa posterior diagnostic with regime classification, and the
-Fisher/Godambe/van Trees information bound used in the paper.
+Identify about Reserve Uncertainty: Information Boundaries in Loss
+Reserving" (Van Oirbeek, 2026; the CNBG paper). The module is a port of
+the library behind the paper's tables (\code{R/working_fit.R}, \code{R/predictive.R},
+\code{R/cell_shapes.R}, \code{R/curvature_adjustment.R}, \code{R/oracle.R} and
+\code{R/legacy_methods.R} of the replication material), with the same
+conventions, so that a fit obtained here is the fit the paper reports.
 }
 \details{
-The Bayesian working-likelihood posterior is computed by dense grid
-quadrature over the two parameters (kappa, A) rather than MCMC: the target
-is the Gamma(2, 2/mu_z) composite likelihood of the paper, the integration
-is deterministic, and the package carries no Stan dependency. The variance
-function is V(nu) = A nu + nu^2 / kappa throughout.
+The pieces, in the order the paper uses them:
+\itemize{
+\item \code{\link[=simulate_cnbg]{simulate_cnbg()}}: the data-generating process at the paper's
+calibration, with the row frailty \code{kappa_r}, the optional cell shock
+\code{kappa_c} (Section 7 of the paper, Phase 15) and the optional calendar
+drift (Phase 16).
+\item \code{\link[=cnbg_stage1]{cnbg_stage1()}}: the Stage-1 mean structure, a quasi-Poisson GLM
+with free accident-year levels (Chain-Ladder means) or with the levels
+anchored to a known exposure.
+\item \code{\link[=fit_cnbg_wls]{fit_cnbg_wls()}}: the two-stage second-moment estimator of
+\verb{(A, B = 1/kappa_B)}, a non-negative least-squares fit of the squared
+residuals on \verb{(nu, nu^2)} with weights \code{nu^-2} and the cap
+\code{kappa_B <= 1000}; \code{\link[=two_stage_target]{two_stage_target()}} gives its population target
+under free levels (Proposition 4.2 and Remark 4.5 of the paper).
+\item \code{\link[=fit_cnbg_working]{fit_cnbg_working()}}: the working-likelihood posterior, with the
+Gamma shapes set cell by cell from the fourth moment, the squared
+residuals corrected for leverage, and the curvature adjustment of
+Ribatet, Cooley and Davison (2012). \code{mean = "absorbed"} is the fit the
+predictive uses under free levels; \code{mean = "full"} carries the
+\code{nu^2 / kappa_B} term and feeds \code{\link[=diagnose_kappa]{diagnose_kappa()}}.
+\item \code{\link[=fit_cnbg]{fit_cnbg()}} and \code{\link[=reserve_cnbg]{reserve_cnbg()}}: the modular predictive CNBG-Mod
+(\code{A} from the absorbed fit, \code{kappa_B} from the prior, the row frailty
+restored by the conjugate update, moment-matched Gamma cells).
+\item \code{\link[=bootstrap_cnbg_cond]{bootstrap_cnbg_cond()}} (WLS-cond) and \code{\link[=bootstrap_cnbg_refit]{bootstrap_cnbg_refit()}}
+(Frequentist CNBG), the two point-estimate procedures of the paper.
+\item \code{\link[=diagnose_kappa]{diagnose_kappa()}}: contraction, shift, Kullback--Leibler
+divergence and tier of the \code{kappa_B} posterior against its prior.
+\item \code{\link[=cnbg_information_kappa]{cnbg_information_kappa()}}: the Fisher and Godambe information on
+\code{kappa_B} from squared residuals at a calibration (Section 6).
+\item \code{\link[=fit_cnbg_exact]{fit_cnbg_exact()}}: the exact frailty-augmented posterior by
+Hamiltonian Monte Carlo, with anchored or free accident-year levels
+(requires \code{rstan}).
+}
+
+The variance function is \verb{Var(X) = A nu + nu^2 / kappa_B} throughout, with
+\code{1 + 1/kappa_B = (1 + 1/kappa_r)(1 + 1/kappa_c)}. Under free accident-year
+levels the row frailty is absorbed by the levels (Theorem 1 of the paper):
+the amount triangle then supplies \code{A} and the predictive takes \code{kappa_B}
+from its prior.
 }
 \keyword{internal}

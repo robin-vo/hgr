@@ -6,14 +6,6 @@
 \usage{
 rdirichlet_(n, alpha)
 }
-\arguments{
-\item{n}{Number of samples.}
-
-\item{alpha}{Numeric vector of concentration parameters.}
-}
-\value{
-Matrix with \code{n} rows and \code{length(alpha)} columns.
-}
 \description{
 Sample from a Dirichlet distribution
 }

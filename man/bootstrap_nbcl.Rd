@@ -9,7 +9,10 @@ bootstrap_nbcl(
   B = 5000,
   correct_kappa = TRUE,
   seed = NULL,
-  verbose = TRUE
+  verbose = TRUE,
+  timeout = 30,
+  checkpoint_file = NULL,
+  checkpoint_every = 500
 )
 }
 \arguments{
@@ -22,10 +25,25 @@ bootstrap_nbcl(
 \item{seed}{Random seed for reproducibility}
 
 \item{verbose}{Print progress (default TRUE)}
+
+\item{timeout}{Hard per-refit timeout in seconds (default 30). On timeout
+the replicate is recorded as failed (NA) and the run continues.}
+
+\item{checkpoint_file}{Optional path to an RDS checkpoint file. If supplied,
+partial results are saved every \code{checkpoint_every} replicates and a
+re-run resumes from the last checkpoint.}
+
+\item{checkpoint_every}{Checkpoint frequency in replicates (default 500).}
 }
 \value{
 An object of class "nbcl_boot" containing bootstrap results
 }
 \description{
-Parametric bootstrap for NB-CL model
+Implements the unconditional parametric bootstrap (Algorithm 1 of the
+NB-CL paper). Each expensive refit is wrapped in a hard per-fit timeout;
+timeouts and failed refits are recorded as NA and reported via
+\code{n_failed}, and never hang the run. If \code{checkpoint_file} is
+supplied, results are checkpointed incrementally via atomic
+write-then-rename, and an interrupted run resumes from the last
+checkpoint on re-invocation with the same arguments.
 }

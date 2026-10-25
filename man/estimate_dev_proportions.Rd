@@ -7,27 +7,17 @@
 estimate_dev_proportions(triangle)
 }
 \arguments{
-\item{triangle}{Numeric matrix. Incremental run-off triangle with
-\code{NA} for unobserved cells. Rows are accident years, columns
-are development periods.}
+\item{triangle}{Incremental run-off triangle, NA for unobserved cells.}
 }
 \value{
-A list with:
-\describe{
-\item{pi_hat}{Numeric vector of incremental development proportions
-summing to 1.}
-\item{F_hat}{Numeric vector of cumulative development proportions
-with \code{F_hat[J] = 1}.}
-}
+List with \code{pi_hat} (incremental, summing to 1) and \code{F_hat}
+(cumulative, with \code{F_hat[J] = 1}).
 }
 \description{
-Computes cumulative development proportions \eqn{F} and incremental
-proportions \eqn{\pi} from an incremental run-off triangle using
-volume-weighted Chain-Ladder link ratios.
+Estimate Development Proportions from a Run-Off Triangle
 }
 \details{
-Any method producing development proportions can be used instead of
-Chain-Ladder. The bootstrap and diagnostic functions accept
-user-supplied \code{pi_hat} vectors, making the framework
-method-agnostic.
+Any method producing development proportions may be used instead.
+The bootstrap and diagnostic functions accept a user-supplied \code{pi_hat},
+which is what makes the framework method-agnostic.
 }

@@ -9,47 +9,47 @@ multinomial_bootstrap(
   pi_hat = NULL,
   c_param = NULL,
   B = 10000,
-  level = 0.95
+  level = 0.95,
+  tier_min = 4L
 )
 }
 \arguments{
-\item{triangle}{Numeric matrix. Incremental run-off triangle.}
+\item{triangle}{Incremental run-off triangle, NA for unobserved cells.}
 
-\item{pi_hat}{Numeric vector. Development proportions. If \code{NULL},
-estimated via Chain-Ladder.}
+\item{pi_hat}{Development proportions summing to 1; estimated if NULL.}
 
-\item{c_param}{Scalar. Dirichlet concentration. If \code{NULL},
-estimated from the triangle.}
+\item{c_param}{Concentration; estimated if NULL.}
 
-\item{B}{Integer. Bootstrap replications (default 10000).}
+\item{B}{Bootstrap replications (default 10000).}
 
-\item{level}{Numeric. Confidence level (default 0.95).}
+\item{level}{Confidence level (default 0.95).}
+
+\item{tier_min}{Minimum moment tier for reporting the mean and standard
+error of an accident year (default 4, i.e. c\emph{F > 4; the package uses
+c}F >= 5 as that boundary with a margin). Years below the tier are
+summarised by quantiles only.}
 }
 \value{
-A list with:
-\describe{
-\item{reserve_cl}{Chain-Ladder point estimate.}
-\item{reserve_mean}{Bootstrap mean.}
-\item{reserve_se}{Bootstrap standard error.}
-\item{ci_lower, ci_upper}{Predictive interval bounds.}
-\item{cv}{Coefficient of variation.}
-\item{c_hat}{Concentration parameter used.}
-\item{pi_hat, F_hat}{Development proportions used.}
-\item{samples}{Vector of bootstrap reserve samples.}
-\item{by_origin}{Per-accident-year breakdown.}
-}
+Object of class \code{multinomial_boot}. \code{reserve_mean} and
+\code{reserve_se} are NA when any reported accident year falls below
+\code{tier_min}; quantiles are always available.
 }
 \description{
-Model-agnostic predictive intervals for total outstanding reserves.
-Any development proportions can be supplied; the framework adds a
-single Dirichlet concentration parameter \eqn{c} to produce full
-predictive distributions.
+Conditional predictive distribution of the total outstanding reserve. The
+observed triangle is held fixed and only the allocation proportion
+W_i ~ Beta(c F_{I-i}, c(1-F_{I-i})) is sampled per accident year per
+replication. Any vector of cumulative development proportions may be
+supplied, from Chain-Ladder, Bornhuetter-Ferguson, Cape Cod or elsewhere.
 }
 \details{
-The bootstrap samples ultimates from
-\eqn{S_i \sim \mathrm{Gamma}(\alpha, \alpha / \hat{S}_i)} and
-allocations from \eqn{W_i \sim \mathrm{Dir}(c \hat{\pi})}, truncates
-to the run-off shape, re-estimates development factors, and computes
-reserves. Process risk is captured through Gamma-Dirichlet sampling;
-parameter risk through re-estimation.
+This is Algorithm 1 of the paper: it satisfies the conditioning requirement
+exactly and substitutes (c_hat, pi_hat) rather than integrating over them.
+The cost of that substitution is measured at 6.5 coverage points at I = 10
+and 2.1 at I = 30; where c_hat is not well determined, use
+\code{bayesian_bootstrap()}.
+
+Under compound Poisson misspecification the construction is conservative:
+the predictive standard deviation exceeds the truth by the factor
+1/sqrt(F_{I-i}) in the compound Poisson limit p -> 1, and by more for
+p in (1,2).
 }

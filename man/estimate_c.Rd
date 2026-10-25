@@ -7,26 +7,27 @@
 estimate_c(triangle, pi_hat = NULL)
 }
 \arguments{
-\item{triangle}{Numeric matrix. Incremental run-off triangle.}
+\item{triangle}{Incremental run-off triangle.}
 
-\item{pi_hat}{Numeric vector. Development proportions. If \code{NULL},
-estimated from the triangle.}
+\item{pi_hat}{Development proportions; estimated from the triangle if NULL.}
 }
 \value{
-Scalar estimate of \eqn{c}. Returns 50 (diffuse default) if
-insufficient data.
+Scalar estimate of \code{c}. Returns 50 with a warning when the estimator
+is undefined (fewer than three rows at every horizon, i.e. I < 5).
 }
 \description{
-Estimates the Dirichlet concentration parameter \eqn{c} from an
-incremental run-off triangle using a partial-column moment method.
-Works for any triangle shape including \eqn{I = J}.
+Partial-column moment estimator of the concentration \code{c}, corrected for the
+subcomposition property.
 }
 \details{
-For each development horizon \eqn{k = 2, \ldots, J-1}, partial
-proportions are computed from the rows observed through period \eqn{k},
-their variance is matched to the Dirichlet formula, and the median
-across columns and horizons is returned.
+For each horizon k the rows observed through k supply the subcomposition
+W_ij = X_ij / sum_{l<=k} X_il, which by Lemma A.3 is Dirichlet with TOTAL
+concentration c*F_k. The moment estimator of that quantity is therefore
+divided by F_k to obtain an estimator of c. Omitting that division leaves
+an estimator inconsistent for c.
 
-The diagnostic threshold \eqn{\hat{c} < 30} signals substantial
-accident-year heterogeneity.
+The estimator is consistent but converges slowly: E(c_hat)/c is about 1.89
+at I = 7, 1.31 at I = 10 and 1.15 at I = 15, with the ratio scale-free in
+c. Where the decision is material, prefer the posterior of
+\code{bayesian_bootstrap()}, which is defined at every triangle size.
 }

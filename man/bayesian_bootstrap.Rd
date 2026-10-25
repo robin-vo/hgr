@@ -2,46 +2,63 @@
 % Please edit documentation in R/multinomPI.R
 \name{bayesian_bootstrap}
 \alias{bayesian_bootstrap}
-\title{Bayesian Predictive Bootstrap for Claims Reserves}
+\title{Regularised Conditional Predictive}
 \usage{
 bayesian_bootstrap(
   triangle,
   B = 5000,
   mu_c = log(50),
   sigma_c = 1,
-  a0 = 1,
-  n_mcmc = 2000,
-  burnin = 500,
-  bayesian_c_only = FALSE,
+  n_mcmc = 5000,
+  burnin = 1000,
+  prop_sd = 0.4,
+  lambda_pi = 600,
+  bayesian_c_only = TRUE,
   level = 0.95
 )
 }
 \arguments{
-\item{triangle}{Numeric matrix. Incremental run-off triangle.}
+\item{triangle}{Incremental run-off triangle, NA for unobserved cells.}
 
-\item{B}{Integer. Predictive samples (default 5000).}
+\item{B}{Posterior predictive samples (default 5000).}
 
-\item{mu_c}{Scalar. Prior mean of \eqn{\log c} (default \code{log(50)}).}
+\item{mu_c, sigma_c}{Prior mean and SD of log c (default log(50), 1).}
 
-\item{sigma_c}{Scalar. Prior SD of \eqn{\log c} (default 1).}
+\item{n_mcmc, burnin}{MCMC length after burn-in, and burn-in.}
 
-\item{a0}{Scalar. Dirichlet prior for \eqn{\pi} (default 1).}
+\item{prop_sd}{Standard deviation of the random-walk proposal on log c.}
 
-\item{n_mcmc}{Integer. MCMC iterations after burn-in (default 2000).}
+\item{lambda_pi}{Dirichlet random-walk concentration for the pi step.}
 
-\item{burnin}{Integer. Burn-in (default 500).}
+\item{bayesian_c_only}{If TRUE, only c is sampled and pi is plugged in
+(default TRUE, matching Algorithm 2 as stated in the paper).}
 
-\item{bayesian_c_only}{Logical. If \code{TRUE}, only \eqn{c} is
-sampled; \eqn{\pi} fixed at plug-in.}
-
-\item{level}{Numeric. Confidence level (default 0.95).}
+\item{level}{Confidence level (default 0.95).}
 }
 \value{
-A list with: \code{reserve_mean}, \code{reserve_se},
-\code{ci_lower}, \code{ci_upper}, \code{c_posterior_mean},
-\code{c_posterior_sd}, \code{accept_rate}, \code{samples}.
+List with predictive quantiles, posterior summaries of c, and
+acceptance rates.
 }
 \description{
-Places priors on \eqn{c} and \eqn{\pi} and uses MCMC to produce
-posterior predictive reserve distributions.
+Algorithm 2 of the paper: the conditional predictive with \code{c} integrated
+over its posterior rather than substituted. \code{pi} may optionally be sampled
+as well.
+}
+\details{
+The likelihood is the exact subcomposition likelihood: a row observed
+through development year k contributes a Dirichlet with TOTAL concentration
+c*F_k (Lemma A.3), so partially developed rows enter without approximation.
+
+No conjugate update exists for pi. The Dirichlet is a full exponential
+family in alpha = c\emph{pi and not in pi, since the log-partition contributes
+sum_j lgamma(c}pi_j), which is not a Dirichlet kernel in pi. pi is therefore
+sampled by a Dirichlet random-walk Metropolis step with the Hastings
+correction, under a uniform prior on the simplex.
+
+NO MOMENTS EXIST. Under the posterior mixture the predictive mean is the
+integral of c(1-F)/(cF-1) against the posterior of c, which has a simple
+pole at c = 1/F; a log-normal prior puts positive posterior density there,
+so the integral diverges, as does every higher moment. Only quantiles are
+returned, and this is a property of the construction rather than a
+reporting convention.
 }

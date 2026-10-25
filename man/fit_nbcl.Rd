@@ -4,12 +4,10 @@
 \alias{fit_nbcl}
 \title{Fit Negative Binomial Chain-Ladder model}
 \usage{
-fit_nbcl(triangle, link = "log")
+fit_nbcl(triangle)
 }
 \arguments{
 \item{triangle}{A matrix representing the run-off triangle (incremental claims)}
-
-\item{link}{Link function (default "log")}
 }
 \value{
 An object of class "nbcl" containing the fitted model and metadata

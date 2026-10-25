@@ -7,47 +7,67 @@
 simulate_cnbg(
   I = 10L,
   J = 10L,
-  kappa = 5,
+  kappa_r = 5,
+  kappa_c = Inf,
   alpha = 3,
-  Y_bar = 10000,
-  mu_log_base = 7,
+  Y_bar = 5000,
+  mu_base = 30,
   mu_growth = 0.05,
-  w_ratio = 0.7
+  w = NULL,
+  delta = 0,
+  onset = 7L,
+  kappa = NULL
 )
 }
 \arguments{
 \item{I, J}{Number of accident and development years.}
 
-\item{kappa}{Frailty dispersion (small = heterogeneous accident years).}
+\item{kappa_r}{Row-frailty dispersion (small = heterogeneous accident
+years). \code{kappa} is accepted as an alias.}
+
+\item{kappa_c}{Cell-shock dispersion; \code{Inf} (the default) is the
+single-frailty model of the paper's main design.}
 
 \item{alpha}{Gamma severity shape.}
 
 \item{Y_bar}{Mean severity.}
 
-\item{mu_log_base, mu_growth}{Log accident-year intensity is
-\code{mu_log_base + mu_growth (i - 1)}.}
+\item{mu_base, mu_growth}{Accident-year expected claim count is
+\code{mu_base * exp(mu_growth (i - 1))}.}
 
-\item{w_ratio}{Geometric ratio for development weights (decreasing).}
+\item{w}{Development weights, length \code{J} (normalised internally). For
+\code{J < 10} the first \code{J} paper weights are used.}
+
+\item{delta, onset}{Calendar drift rate and onset (Phase 16 of the paper).}
+
+\item{kappa}{Alias of \code{kappa_r}.}
 }
 \value{
 A list with \code{triangle} (incremental amounts, lower triangle \code{NA}),
-\code{full} (complete I x J matrix), \code{R_true} (realised outstanding reserve),
-and \code{U} (the drawn frailties).
+\code{full} (complete \verb{I x J} matrix), \code{R_true} (realised outstanding
+reserve), \code{U} (row frailties), \code{eps} (cell shocks, all \code{1} when
+\code{kappa_c = Inf}), \code{N} (latent counts) and the calibration (\code{mu}, \code{w},
+\code{nu}, \code{A}).
 }
 \description{
 Draws an incremental paid-loss triangle from the CNBG generative model:
-accident-year frailty \code{U_i ~ Gamma(kappa, kappa)}, cell counts
-\code{N_ij ~ Poisson(mu_i U_i w_j)}, Gamma severities, and \code{X_ij} their sum.
+accident-year frailty \code{U_i ~ Gamma(kappa_r, kappa_r)}, optional cell shock
+\code{eps_ij ~ Gamma(kappa_c, kappa_c)}, cell counts
+\verb{N_ij ~ Poisson(mu_i U_i eps_ij w_j g_ij)}, Gamma severities with shape
+\code{alpha} and mean \code{Y_bar}, and \code{X_ij} their sum. \verb{g_ij = exp(-delta max(0, t - onset))} with \code{t = i + j - 1} is the calendar drift of the
+paper's Phase 16; \code{delta = 0} (the default) switches it off.
 }
 \details{
-Defaults reproduce the paper's stated calibration: \code{mu_i = exp(mu_log_base +
-mu_growth (i-1))}, geometric development weights, and mean severity \code{Y_bar}.
-This places the cells in the heterogeneity-capable regime the information
-bounds are derived for; lowering \code{mu_log_base} moves the triangle into the
-sparse, severity-dominated regime.
+Defaults reproduce the paper's simulation calibration: accident-year
+expected claim counts \verb{mu_i = mu_base exp(mu_growth (i - 1))} with
+\code{mu_base = 30} (30 to 47 expected claims per row), the decreasing
+development-weight vector \verb{(.35, .25, .15, .10, .07, .04, .02, .01, .005, .005)}, mean severity \code{Y_bar = 5000} and severity shape \code{alpha = 3}. The
+random draws are made in the same order as the paper's scripts
+(\code{oracle_dgp()}, \code{dgp_cellshock()}, \code{dgp_drift()}), so that a seed
+reproduces the paper's triangles.
 }
 \examples{
 set.seed(1)
-tri <- simulate_cnbg(I = 10, J = 10, kappa = 5, alpha = 3)
+tri <- simulate_cnbg(kappa_r = 5, alpha = 3)
 tri$R_true
 }

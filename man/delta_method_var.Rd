@@ -7,22 +7,23 @@
 delta_method_var(triangle, pi_hat = NULL, c_param = NULL)
 }
 \arguments{
-\item{triangle}{Numeric matrix. Incremental run-off triangle.}
+\item{triangle}{Incremental run-off triangle, NA for unobserved cells.}
 
-\item{pi_hat}{Numeric vector. Development proportions (or \code{NULL}).}
+\item{pi_hat}{Development proportions summing to 1; estimated if NULL.}
 
-\item{c_param}{Scalar. Concentration parameter (or \code{NULL}).}
+\item{c_param}{Concentration; estimated if NULL.}
 }
 \value{
-Data frame with per-origin columns: \code{origin},
-\code{X_obs}, \code{F_k}, \code{reserve}, \code{process_se},
-\code{cv}.
+Data frame with per-origin \code{origin}, \code{X_obs}, \code{F_k}, \code{cF},
+\code{reserve}, \code{process_se}, \code{cv}. \code{process_se} is NA where c*F <= 2, the
+variance not existing there.
 }
 \description{
 Closed-form process variance under the Dirichlet-Gamma model.
-Avoids bootstrapping when speed is needed.
 }
 \details{
-\deqn{\mathrm{Var}(S_i^{\mathrm{IBNP}} \mid X_i^{\mathrm{obs}})
-  \approx (X_i^{\mathrm{obs}})^2 \cdot \frac{1 - F}{F^3(c+1)}}
+Var(S | X) ~ X^2 (1-F) / (F^3 (c+1)). We do not recommend this in
+preference to \code{multinomial_bootstrap()} at any c_hat: the moment
+expansion is least reliable in exactly the small-c*F regime where a
+shortcut is most tempting, and its coverage has not been evaluated.
 }
