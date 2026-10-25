@@ -1,14 +1,14 @@
-#' @title Classical Reserving Methods as Credibility Estimators
-#' @description 
-#' Implementation of the unified credibility framework for claims reserving.
-#' This file contains all functions from "Classical Reserving Methods as 
-#' Credibility Estimators: A Unified Bayesian Framework" (Van Oirbeek, 2026).
-#' 
-#' The key insight is that Chain-Ladder, Cape Cod, Bornhuetter-Ferguson, and
-#' Mack are all credibility estimators under a Poisson-Gamma-Multinomial model.
-#' 
-#' @author Robin Van Oirbeek
-#' @import stats
+# @title Classical Reserving Methods as Credibility Estimators
+# @description 
+# Implementation of the unified credibility framework for claims reserving.
+# This file contains all functions from "Classical Reserving Methods as 
+# Credibility Estimators: A Unified Bayesian Framework" (Van Oirbeek, 2026).
+# 
+# The key insight is that Chain-Ladder, Cape Cod, Bornhuetter-Ferguson, and
+# Mack are all credibility estimators under a Poisson-Gamma-Multinomial model.
+# 
+# @author Robin Van Oirbeek
+# @import stats
 
 # =============================================================================
 # PART 1: UTILITY FUNCTIONS
@@ -112,7 +112,7 @@ chain_ladder <- function(triangle, F_cum = NULL) {
 #'
 #' The Cape Cod method corresponds to the credibility limit Z -> 0
 #' (full weight on pooled experience, homogeneous rates assumption).
-#' This is the Bühlmann-Straub credibility estimator.
+#' This is the Buehlmann-Straub credibility estimator.
 #'
 #' @param triangle A matrix representing the run-off triangle (cumulative claims)
 #' @param exposure Vector of exposures (e.g., premium, first period claims)
@@ -359,7 +359,7 @@ fit_mack <- function(triangle, tail_factor = 1.0, alpha = NULL) {
 # PART 3: CREDIBILITY THEORY
 # =============================================================================
 
-#' Bühlmann credibility estimator
+#' Buehlmann credibility estimator
 #'
 #' @param x Vector of observations for the risk
 #' @param mu Collective mean (prior mean)
@@ -390,7 +390,7 @@ buhlmann <- function(x, mu, sigma_sq, tau_sq) {
   return(result)
 }
 
-#' Bühlmann-Straub credibility estimator
+#' Buehlmann-Straub credibility estimator
 #'
 #' @param x Vector of observations (claim rates)
 #' @param w Vector of exposure weights
@@ -428,7 +428,7 @@ buhlmann_straub <- function(x, w, mu, sigma_sq, tau_sq) {
   return(result)
 }
 
-#' Estimate Bühlmann-Straub variance components
+#' Estimate Buehlmann-Straub variance components
 #'
 #' @param x Vector of observations (claim rates)
 #' @param w Vector of exposure weights
@@ -504,7 +504,7 @@ three_source_credibility <- function(x, w, mu_pool, mu_prior,
 #'
 #' UCR is a general credibility-based reserving method that nests Chain-Ladder,
 #' Cape Cod, and Bornhuetter-Ferguson as special cases. It adaptively estimates
-#' credibility weights from the data, using either the Bühlmann-Straub moment
+#' credibility weights from the data, using either the Buehlmann-Straub moment
 #' estimator or the marginal maximum likelihood (MML) estimator of the
 #' between-year variance.
 #'
@@ -515,7 +515,7 @@ three_source_credibility <- function(x, w, mu_pool, mu_prior,
 #' @param prior_var Optional external prior variance (tau_0^2)
 #' @param sigma_sq Optional process variance. If supplied, overrides \code{dispersion}.
 #' @param method Estimator for the between-year variance tau^2:
-#'   \code{"bs"} (Bühlmann-Straub moment estimator, default) or
+#'   \code{"bs"} (Buehlmann-Straub moment estimator, default) or
 #'   \code{"mml"} (marginal maximum likelihood via the Negative Binomial marginal).
 #' @param dispersion Process-variance convention when \code{sigma_sq} is not supplied:
 #'   \code{"poisson"} sets sigma^2 = mu_pool (default, appropriate for count data);
@@ -530,7 +530,7 @@ three_source_credibility <- function(x, w, mu_pool, mu_prior,
 #'   order 1 on the simulation grid) and collapsed fits (theta > 1e10);
 #'   on a tau^2 = 0.02 design the two regimes are separated by roughly ten
 #'   orders of magnitude, so the cap is insensitive to its exact value over
-#'   [1e2, 1e9]. See Sec. 4.6.
+#'   `[1e2, 1e9]`. See Sec. 4.6.
 #' @return An object of class "ucr" with reserve estimates and diagnostics.
 #'   In addition to the reserve and credibility components (\code{reserve},
 #'   \code{total_reserve}, \code{Lambda_CL}, \code{Lambda_UCR}, \code{Z1},
@@ -746,9 +746,9 @@ print.ucr <- function(x, ...) {
   
   mean_Z1 <- mean(x$Z1)
   if (mean_Z1 > 0.9) {
-    cat("\nInterpretation: High Z1 -> UCR ≈ Chain-Ladder\n")
+    cat("\nInterpretation: High Z1 -> UCR ~ Chain-Ladder\n")
   } else if (mean_Z1 < 0.1) {
-    cat("\nInterpretation: Low Z1 -> UCR ≈ Cape Cod\n")
+    cat("\nInterpretation: Low Z1 -> UCR ~ Cape Cod\n")
   } else {
     cat("\nInterpretation: Moderate Z1 -> UCR interpolates between CL and CC\n")
   }

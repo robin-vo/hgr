@@ -95,7 +95,7 @@ estimate_dev_proportions <- function(triangle) {
 #' divided by F_k to obtain an estimator of c. Omitting that division leaves
 #' an estimator inconsistent for c.
 #'
-#' The estimator is consistent but converges slowly: E[c_hat]/c is about 1.89
+#' The estimator is consistent but converges slowly: E(c_hat)/c is about 1.89
 #' at I = 7, 1.31 at I = 10 and 1.15 at I = 15, with the ratio scale-free in
 #' c. Where the decision is material, prefer the posterior of
 #' `bayesian_bootstrap()`, which is defined at every triangle size.
@@ -323,6 +323,7 @@ delta_method_var <- function(triangle, pi_hat = NULL, c_param = NULL) {
 #' @param mu_c,sigma_c Prior mean and SD of log c (default log(50), 1).
 #' @param n_mcmc,burnin MCMC length after burn-in, and burn-in.
 #' @param lambda_pi Dirichlet random-walk concentration for the pi step.
+#' @param prop_sd Standard deviation of the random-walk proposal on log c.
 #' @param bayesian_c_only If TRUE, only c is sampled and pi is plugged in
 #'   (default TRUE, matching Algorithm 2 as stated in the paper).
 #'

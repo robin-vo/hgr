@@ -1,9 +1,9 @@
-#' @title Negative Binomial Chain-Ladder Model
-#' @description Functions for fitting and predicting with the NB-CL model
-#' @author Robin Van Oirbeek
-#' @import MASS
-#' @import stats
-#' @importFrom R.utils withTimeout
+# @title Negative Binomial Chain-Ladder Model
+# @description Functions for fitting and predicting with the NB-CL model
+# @author Robin Van Oirbeek
+# @import MASS
+# @import stats
+# @importFrom R.utils withTimeout
 
 # =============================================================================
 # Utility functions
