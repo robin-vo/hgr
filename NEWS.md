@@ -18,7 +18,8 @@ default) evaluates the same posterior deterministically.
   1000`, the Pearson fallback and the `(n - q) / n` factor; it replaces the
   iterated weighted regression of 0.5.0.
 * `two_stage_target()`: the population target of that estimator under free
-  levels, `B* + c_q / kappa_c` (Proposition 4.2 and Remark 4.5).
+  levels, `B* + c_q / kappa_c` (Proposition 4.2 and Remark 4.5), and the
+  target `A (1 - mean s_ij)` of the constrained intercept at the cap.
 * `fit_cnbg_working()`: the working-likelihood posterior with the Gamma
   shapes set cell by cell from the fourth moment, leverage-corrected squared
   residuals, dropped zero-fit cells, the posterior mode, and the matrix

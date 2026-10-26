@@ -307,7 +307,7 @@ cnbg_information_kappa(kappa_grid = c(3, 5, 10, 20, 50), alpha = 3)
 
 ## Replication material
 
-`replication/hgr-identification/` holds the R scripts, seeds, stored result files and Schedule P inputs behind every table of *What Paid Triangles Identify about Reserve Uncertainty*; `replication/hgr-identification/REPLICATION.md` lists the script behind each table and the software versions. From that folder, `Rscript R/reproduce_tables.R` regenerates all tables from the stored result files without refitting. The folder is excluded from the package build.
+The R scripts, seeds, stored result files and Schedule P inputs behind the tables of *What Paid Triangles Identify about Reserve Uncertainty* (about 70 MB) are not part of this repository; they are available from the author on request. The CNBG module of the package is a port of those scripts, so the procedures themselves can be run from the package.
 
 ## References
 
