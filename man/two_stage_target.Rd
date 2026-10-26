@@ -37,9 +37,12 @@ design).}
 \value{
 A data frame with one row per \verb{(kappa_r, kappa_c)} pair:
 \code{B_star}, \code{c_q}, \code{B_target}, \code{kappa_target} (\code{Inf} where the target is
-the cap), \code{A_star_over_A} (the single-frailty target of \code{A} relative to
-the truth) and \verb{kappa_c_threshold = c_q / |B*|}, the cell dispersion
-below which the second stage reads it.
+the cap), \code{A_star_over_A} (the unconstrained intercept relative to the
+truth), \code{A_cap_over_A} (the target of the implemented constrained
+estimator of \code{A} when the slope sits at the cap: the mean of \code{1 - s_ij}
+over the cells, \code{0.82} at the paper's design, since the NNLS intercept
+is then the mean of \code{z / nu_hat}) and \verb{kappa_c_threshold = c_q / |B*|},
+the cell dispersion below which the second stage reads it.
 }
 \description{
 With the pattern known and free accident-year levels, the fitted level of
