@@ -284,7 +284,11 @@ print.cnbg_stage1 <- function(x, ...) {
 #' and with a finite cell shock the target is `B* + c_q / kappa_c` (Remark
 #' 4.5). See [two_stage_target()]. The estimator therefore sits at the cap on
 #' most correctly specified triangles, which is why the predictive takes
-#' `kappa_B` from the prior.
+#' `kappa_B` from the prior. With the slope at the cap the intercept is the
+#' mean of `z / nu_hat`, whose target is `A (1 - mean s_ij)`, about `0.82 A`
+#' at the paper's design: the second-moment fit also understates `A`. The
+#' working fit ([fit_cnbg_working()]) removes that deflation by the
+#' leverage factor.
 #'
 #' @param ms A `cnbg_stage1` object.
 #' @param kappa_cap Cap on `kappa_B`.
@@ -329,9 +333,12 @@ fit_cnbg_wls <- function(ms, kappa_cap = .cnbg_kappa_cap) {
 #' @inheritParams simulate_cnbg
 #' @return A data frame with one row per `(kappa_r, kappa_c)` pair:
 #'   `B_star`, `c_q`, `B_target`, `kappa_target` (`Inf` where the target is
-#'   the cap), `A_star_over_A` (the single-frailty target of `A` relative to
-#'   the truth) and `kappa_c_threshold = c_q / |B*|`, the cell dispersion
-#'   below which the second stage reads it.
+#'   the cap), `A_star_over_A` (the unconstrained intercept relative to the
+#'   truth), `A_cap_over_A` (the target of the implemented constrained
+#'   estimator of `A` when the slope sits at the cap: the mean of `1 - s_ij`
+#'   over the cells, `0.82` at the paper's design, since the NNLS intercept
+#'   is then the mean of `z / nu_hat`) and `kappa_c_threshold = c_q / |B*|`,
+#'   the cell dispersion below which the second stage reads it.
 #' @examples
 #' two_stage_target(kappa_r = c(3, 5, 10, 20, 50), kappa_c = 5)
 #' @export
@@ -357,7 +364,7 @@ two_stage_target <- function(kappa_r = c(3, 5, 10, 20, 50), kappa_c = Inf,
     Ast <- A * (1 - Es) - Bs * Ex
     data.frame(kappa_r = kr, kappa_c = kc, B_star = Bs, c_q = cq, B_target = Bt,
                kappa_target = if (Bt > 0) 1 / Bt else Inf,
-               A_star_over_A = Ast / A, kappa_c_threshold = cq / abs(Bs))
+               A_star_over_A = Ast / A, A_cap_over_A = 1 - Es, kappa_c_threshold = cq / abs(Bs))
   }))
   rownames(out) <- NULL
   out
