@@ -29,6 +29,7 @@ test_that("the two-stage target reproduces the paper's table", {
   expect_true(all(tt$B_star < 0))
   expect_equal(round(tt$c_q, 3), c(0.461, 0.440, 0.417, 0.402, 0.392))        # results/two_stage_cellshock_report.txt
   expect_equal(round(tt$kappa_c_threshold, 1), c(17.5, 13.7, 10.9, 9.5, 8.6))
+  expect_equal(round(tt$A_cap_over_A, 3), rep(0.818, 5))
   single <- two_stage_target(kappa_r = 5, kappa_c = Inf)
   expect_equal(single$kappa_target, Inf)
 })
