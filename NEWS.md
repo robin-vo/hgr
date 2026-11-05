@@ -1,3 +1,31 @@
+# hgr 0.7.0
+
+## ODP bootstrap decomposition module (new)
+
+A port of the library behind "The over-dispersed Poisson bootstrap: A
+decomposition of predictive variance" (Van Oirbeek, 2026, working paper),
+separate from the conditional (multinomial) bootstrap of the package. With
+the same seed, `odp_bootstrap()` draws what the paper's scripts drew.
+
+* `odp_fit()`: the chain-ladder as the ODP quasi-likelihood fit, with the
+  Pearson dispersion, the adjusted residual pool, the residual-pool factor
+  `sigma_r^2 / phi` and the paper's treatment of structural-zero columns
+  (`dof = "full"` keeps `p = I + J - 1`, as the paper's scripts do).
+* `odp_variance_terms()`: the first-order level, pattern and process terms
+  of equation (5) from the expected Fisher information on the tangent space.
+* `odp_bootstrap()`: Algorithm 1 with the no-refit, diagonal-fixed and
+  process-only variants on the same pseudo-triangles, the zero fallback of
+  line 5, the decomposition ratios of Theorem 4.1, the predictive intervals,
+  and the centred and rescaled pool of Remark 4.5 (`pool = "centred"`).
+* `odp_posterior()`: the closed-form log-flat quasi-posterior of Proposition
+  7.1 (independent Beta share ratios, Gamma levels), its exponents and
+  reserve-moment conditions, the exact predictive mean and variance with the
+  pattern, level and process components, independent draws, and the
+  Dirichlet(alpha) prior with the zero columns removed or retained.
+* `odp_gibbs()`: the Gibbs sampler of the paper's simulation cells.
+* `odp_certificates()`: the weak (no pole of the refit map) and strong
+  (every factor above one) certificates from the observed triangle.
+
 # hgr 0.6.0
 
 ## CNBG module rebuilt as a port of the paper's replication library

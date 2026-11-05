@@ -6,6 +6,7 @@ An R package implementing the Grammar of Reserving, a generative construction fo
 - a Unified Credibility Reserving (UCR) framework based on the insight that **classical reserving methods are credibility estimators**
 - **model-agnostic conditional predictive intervals** via Dirichlet-Multinomial allocation, with a portfolio-specific operability bound for when the framework can report at all
 - the Compound Negative Binomial-Gamma (CNBG) **amount-triangle** model of *What Paid Triangles Identify about Reserve Uncertainty*, as a port of that paper's replication library: the information boundaries of a paid triangle, the modular predictive CNBG-Mod, and the diagnostic for when paid amounts alone can be trusted
+- the **decomposition of the ODP bootstrap** of *The over-dispersed Poisson bootstrap: A decomposition of predictive variance* (working paper), as a port of that paper's replication library: the level, pattern and process components of the England-Verrall bootstrap, its variants, the residual-pool factor, the closed-form quasi-posterior with its reserve-moment conditions, and two certificates on the refit
 
 ## Multinomial Parametric Bootstrap
 
@@ -16,7 +17,18 @@ Conditional predictive intervals for claims reserving. The observed triangle is 
 - **Two diagnostics, not one threshold**: `diagnose_c()` reports the portfolio-specific operability bound `c†(τ) = τ/π₀` and, separately, the heterogeneity screen with its measured error rates. They answer different questions and a portfolio can pass one while failing the other
 - **Tiered moment reporting**: `(1-W)/W` is Beta-prime, whose k-th moment is finite only when `c·F > k`. The package enforces this and returns `NA` for the mean and standard error where they do not exist, rather than a number with no population counterpart
 - **Joint count-amount**: The same structure handles claim counts (Multinomial) and claim amounts (Dirichlet)
-- **Fully parametric**: Drawn from the Gamma-Dirichlet generative model. Note that a residual bootstrap with free accident-year effects reproduces the diffuse-limit posterior of the row level and is a correctly targeted benchmark under that hierarchy; the distinction that survives is the informative anchor, which a residual bootstrap has no channel to carry
+- **Fully parametric**: Drawn from the Gamma-Dirichlet generative model. The residual (ODP) bootstrap, which reproduces the diffuse-limit posterior of the row level under free accident-year effects and has no channel for an informative anchor, is the subject of the separate module below
+
+## ODP Bootstrap Decomposition
+
+The England-Verrall ODP bootstrap as a predictive construction, from *The over-dispersed Poisson bootstrap: A decomposition of predictive variance* (Van Oirbeek, 2026, working paper). This module is separate from the conditional multinomial bootstrap above: it concerns the residual bootstrap of the over-dispersed Poisson chain-ladder, and is a port of the library behind the paper's tables (`24_correspondence_lib.R`, `51_posterior_exact_lib.R` and the certificate of `67_process_convention.R` of its replication material). With the same seed, `odp_bootstrap()` draws exactly what the paper's scripts drew.
+
+- **Operation by component**: resampling the cells generates the level uncertainty (exactly, up to the residual-pool factor), refitting the development factors generates the pattern uncertainty, and the process draw generates the process variance; the level and pattern parts are orthogonal to first order, and their sum corresponds to the quasi-posterior predictive variance under priors flat in the log-parameters with the same dispersion plugged in (Theorem 4.1). `odp_variance_terms()` gives the three terms at the fit; `odp_bootstrap()` returns the full bootstrap with its no-refit, diagonal-fixed and process-only variants on the same pseudo-triangles and the decomposition ratios
+- **What a variant omits**: holding the latest diagonal fixed under the ODP process law omits the level component; omitting the refit omits the pattern component (Corollary 4.4). Both variants are returned beside the full bootstrap
+- **The residual pool**: the conventional pool carries the factor `sigma_r^2 / phi = 1 - rbar^2 / phi` on the parameter part, which does not vanish under heterogeneous levels (Remark 4.5); `pool = "centred"` is the centred and rescaled pool the paper recommends, with mean zero and variance `phi`
+- **The exact quasi-posterior**: `odp_posterior()` is Proposition 7.1, the independent-Beta law of the successive share ratios with Gamma levels given the pattern, which gives the reserve moments in closed form and the conditions for their finiteness (`min_{l >= k} e_l > 1` for the mean, `> 2` for the variance), independent draws without a Markov chain, and the Dirichlet(alpha) prior on the pattern with the structural-zero columns removed or retained. `odp_gibbs()` is the sampler the paper's simulation cells used
+- **Certificates and conventions**: `odp_certificates()` computes from the observed triangle whether the refit map can have a pole on the support of the resampling and whether every refitted factor must exceed one. The zero-reserve fallback of line 5 of Algorithm 1 and the structural-zero reduction are the paper's conventions, applied as the paper applies them; the fit stops on triangles with a development factor below one, where the paper's procedures are not defined
+- **What this does not do**: the correspondence is one of variances to first order in the volume, not of predictive distributions; neither the bootstrap nor the quasi-posterior represents the uncertainty in the plug-in dispersion, and agreement between the two is not evidence that the reserving model is calibrated (the paper's Schedule P panel under-covers out of sample under both)
 
 ## NB-CL
 
@@ -117,6 +129,47 @@ reg$c_posterior_mean
 #    bootstrap at any c_hat.
 delta_method_var(incr)
 ```
+## Quick Start — ODP Bootstrap Decomposition
+
+```r
+library(hgr)
+library(ChainLadder)
+
+inc <- cum2incr(GenIns)
+inc[!(row(inc) + col(inc) <= 11)] <- NA      # incremental triangle, future cells NA
+
+# 1. The chain-ladder as the ODP quasi-likelihood fit: Pearson dispersion,
+#    adjusted residual pool, residual-pool factor, structural-zero columns
+fit <- odp_fit(inc)
+fit
+
+# 2. The first-order terms of the predictive variance (equation (5)):
+#    level L, pattern P and process Pi, with their shares
+odp_variance_terms(fit)
+
+# 3. Algorithm 1 with its variants on the same pseudo-triangles; with the
+#    same seed the draws are those of the paper's scripts
+b <- odp_bootstrap(fit, B = 4000, seed = 2026)
+b
+b$decomposition      # no-refit / (sigma_r^2/phi) L is one up to Monte Carlo error (Theorem 4.1(i))
+b$intervals          # full, no-refit, diagonal-fixed, process-only
+
+# 4. The closed-form quasi-posterior (Proposition 7.1): exponents, moment
+#    conditions, exact mean and variance with its three components, draws
+po <- odp_posterior(fit, n = 20000, seed = 1)
+po
+var(b$R_full) / po$var        # bootstrap variance over the exact quasi-posterior variance
+
+# 5. A triangle on which the posterior mean is infinite (Section 7's 3 x 3 example)
+ex3 <- rbind(c(1, 1, 1), c(10, 1, NA), c(1, NA, NA))
+odp_posterior(ex3)            # e = (5.06, 0.92): the youngest row's mean is infinite
+odp_posterior(ex3, alpha = 1) # Dirichlet(1) prior (e_k + k): finite mean and variance
+
+# 6. Certificates from the observed triangle, and the centred pool
+odp_certificates(b)
+odp_bootstrap(fit, B = 4000, pool = "centred", seed = 2026)$pool_factor   # one
+```
+
 ## Quick Start — NB-CL
 
 ```r
@@ -267,6 +320,17 @@ cnbg_information_kappa(kappa_grid = c(3, 5, 10, 20, 50), alpha = 3)
 | `estimate_dev_proportions()` | Chain-Ladder development proportions                      |
 | `delta_method_var()`         | Closed-form variance (not recommended over the bootstrap)  |
 
+### ODP Bootstrap Decomposition
+
+| Function                 | Description                                                                 |
+| ------------------------ | --------------------------------------------------------------------------- |
+| `odp_fit()`              | Chain-ladder as the ODP fit: dispersion, residual pool, pool factor          |
+| `odp_variance_terms()`   | First-order level, pattern and process terms (equation (5))                  |
+| `odp_bootstrap()`        | Algorithm 1 with the no-refit, diagonal-fixed and process-only variants       |
+| `odp_posterior()`        | Closed-form log-flat quasi-posterior, moment conditions, exact moments, draws |
+| `odp_gibbs()`            | Gibbs sampler of the quasi-posterior (the paper's simulation cells)          |
+| `odp_certificates()`     | Weak and strong certificates on the refit from the observed triangle         |
+
 ### Reserving Methods
 
 | Function                 | Description                    |
@@ -307,7 +371,7 @@ cnbg_information_kappa(kappa_grid = c(3, 5, 10, 20, 50), alpha = 3)
 
 ## Replication material
 
-The R scripts, seeds, stored result files and Schedule P inputs behind the tables of *What Paid Triangles Identify about Reserve Uncertainty* (about 70 MB) are not part of this repository; they are available from the author on request. The CNBG module of the package is a port of those scripts, so the procedures themselves can be run from the package.
+The R scripts, seeds, stored result files and Schedule P inputs behind the tables of *What Paid Triangles Identify about Reserve Uncertainty* (about 70 MB) are not part of this repository; they are available from the author on request. The CNBG module of the package is a port of those scripts, so the procedures themselves can be run from the package. The replication package of *The over-dispersed Poisson bootstrap: A decomposition of predictive variance* accompanies that paper as supplementary material; the ODP module is a port of its library, so the paper's procedures can be run from the package, while the scripts that produce its tables are not part of this repository.
 
 ## References
 
@@ -318,3 +382,5 @@ Van Oirbeek, R. (2026). The Negative Binomial Chain-Ladder: A Full Likelihood Mo
 Van Oirbeek, R. (2026). Classical Reserving Methods as Credibility Estimators: A Unified Bayesian Framework. *Working Paper*.
 
 Van Oirbeek, R. (2026). What Paid Triangles Identify about Reserve Uncertainty: Information Boundaries in Loss Reserving. *Working Paper*.
+
+Van Oirbeek, R. (2026). The Over-Dispersed Poisson Bootstrap: A Decomposition of Predictive Variance. *Working Paper*.
