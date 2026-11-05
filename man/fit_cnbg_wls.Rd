@@ -29,7 +29,11 @@ the quadratic coefficient the negative target \verb{B*} of Proposition 4.2,
 and with a finite cell shock the target is \code{B* + c_q / kappa_c} (Remark
 4.5). See \code{\link[=two_stage_target]{two_stage_target()}}. The estimator therefore sits at the cap on
 most correctly specified triangles, which is why the predictive takes
-\code{kappa_B} from the prior.
+\code{kappa_B} from the prior. With the slope at the cap the intercept is the
+mean of \code{z / nu_hat}, whose target is \verb{A (1 - mean s_ij)}, about \verb{0.82 A}
+at the paper's design: the second-moment fit also understates \code{A}. The
+working fit (\code{\link[=fit_cnbg_working]{fit_cnbg_working()}}) removes that deflation by the
+leverage factor.
 }
 \examples{
 set.seed(1)
