@@ -383,4 +383,4 @@ Van Oirbeek, R. (2026). Classical Reserving Methods as Credibility Estimators: A
 
 Van Oirbeek, R. (2026). What Paid Triangles Identify about Reserve Uncertainty: Information Boundaries in Loss Reserving. *Working Paper*.
 
-Van Oirbeek, R. (2026). The Over-Dispersed Poisson Bootstrap: A Decomposition of Predictive Variance. *Working Paper*.
+Van Oirbeek, R. and Verdonck, T. (2026). The Over-Dispersed Poisson Bootstrap: A Decomposition of Predictive Variance. *Working Paper*.
